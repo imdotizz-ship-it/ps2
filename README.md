@@ -18,7 +18,7 @@ jogos e convertido de um formato para o outro.
 
 | Fase | Objetivo | Status |
 | ---- | -------- | ------ |
-| 0 | Mapear os arquivos das duas ISOs (pacotes, compressão, onde ficam motos e pistas) | MotoGP 08: pacotes `.MIX` decifrados ([formato](docs/formats/mix.md)). MotoGP 4: falta o `MOTOGP.DAT` |
+| 0 | Mapear os arquivos das duas ISOs (pacotes, compressão, onde ficam motos e pistas) | Concluída: `.MIX` do MotoGP 08 ([formato](docs/formats/mix.md)) e `MOTOGP.DAT` do MotoGP 4 ([formato](docs/formats/gp4dat.md)) abertos |
 | 1 | Desempacotar e reempacotar os arquivos do MotoGP 08 sem quebrar o jogo | — |
 | 2 | Trocar texturas e pinturas das motos (primeiro resultado visível) | — |
 | 3 | Converter os modelos 3D das motos do MotoGP 4 para o formato do MotoGP 08 | — |
@@ -61,6 +61,16 @@ Lista e extrai os pacotes `.MIX` do MotoGP 08, já com os nomes decifrados.
 python3 tools/mix.py list    extracted/mgp08/BIKES.MIX
 python3 tools/mix.py extract extracted/mgp08/TRACKS/JEREZ.MIX extracted/mgp08_x
 python3 tools/mix.py extract extracted/mgp08/TRACKS/JEREZ.MIX extracted/mgp08_x 'TRACKS\JEREZ\*.SPL'
+```
+
+### `tools/gp4dat.py`
+
+Lista e extrai o `MOTOGP.DAT` do MotoGP 4, já descompactado. Precisa do
+executável do jogo, onde fica o índice.
+
+```sh
+python3 tools/gp4dat.py list    extracted/mgp4/SLUS_211.59 extracted/mgp4/MOTOGP.DAT
+python3 tools/gp4dat.py extract extracted/mgp4/SLUS_211.59 extracted/mgp4/MOTOGP.DAT extracted/mgp4_x 'CourseJerez*'
 ```
 
 ## Regras do repositório
