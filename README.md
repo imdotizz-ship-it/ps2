@@ -18,7 +18,7 @@ jogos e convertido de um formato para o outro.
 
 | Fase | Objetivo | Status |
 | ---- | -------- | ------ |
-| 0 | Mapear os arquivos das duas ISOs (pacotes, compressão, onde ficam motos e pistas) | aguardando ISOs |
+| 0 | Mapear os arquivos das duas ISOs (pacotes, compressão, onde ficam motos e pistas) | MotoGP 08: pacotes `.MIX` decifrados ([formato](docs/formats/mix.md)). MotoGP 4: falta o `MOTOGP.DAT` |
 | 1 | Desempacotar e reempacotar os arquivos do MotoGP 08 sem quebrar o jogo | — |
 | 2 | Trocar texturas e pinturas das motos (primeiro resultado visível) | — |
 | 3 | Converter os modelos 3D das motos do MotoGP 4 para o formato do MotoGP 08 | — |
@@ -27,6 +27,13 @@ jogos e convertido de um formato para o outro.
 A fase 4 é a mais difícil. Uma pista não é só o visual: o jogo precisa da
 colisão, do traçado que a IA segue, dos pontos de largada, dos setores de
 cronometragem e das câmeras.
+
+## ISOs usadas
+
+| Jogo | Serial | Tamanho | SHA-1 |
+| ---- | ------ | ------- | ----- |
+| MotoGP 08 (USA) | SLUS-21811 | 1.631.027.200 | `25cdef00791ac502dfad8a21b1f39b64b58fc361` |
+| MotoGP 4 (USA) | SLUS-21159 | 1.239.285.760 | `d9bb4666d57a86ddbba6ab985ea0e12e8a55c843` |
 
 ## Ferramentas
 
@@ -45,6 +52,16 @@ python3 tools/ps2iso.py extract MotoGP08.iso extracted/mgp08 'DATA/*.PAK'  # só
 
 A saída de `summary` e de `list --magic` é só texto e já basta para começar a
 identificar os formatos, sem precisar enviar a ISO inteira.
+
+### `tools/mix.py`
+
+Lista e extrai os pacotes `.MIX` do MotoGP 08, já com os nomes decifrados.
+
+```sh
+python3 tools/mix.py list    extracted/mgp08/BIKES.MIX
+python3 tools/mix.py extract extracted/mgp08/TRACKS/JEREZ.MIX extracted/mgp08_x
+python3 tools/mix.py extract extracted/mgp08/TRACKS/JEREZ.MIX extracted/mgp08_x 'TRACKS\JEREZ\*.SPL'
+```
 
 ## Regras do repositório
 
