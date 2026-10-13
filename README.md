@@ -19,9 +19,9 @@ jogos e convertido de um formato para o outro.
 | Fase | Objetivo | Status |
 | ---- | -------- | ------ |
 | 0 | Mapear os arquivos das duas ISOs (pacotes, compressão, onde ficam motos e pistas) | Concluída: `.MIX` do MotoGP 08 ([formato](docs/formats/mix.md)) e `MOTOGP.DAT` do MotoGP 4 ([formato](docs/formats/gp4dat.md)) abertos |
-| 1 | Desempacotar e reempacotar os arquivos do MotoGP 08 sem quebrar o jogo | Ferramentas prontas. Patch de teste (`patches/teste-moto-azul.xdelta`) aguardando teste no XBSX2 |
-| 2 | Trocar texturas e pinturas das motos (primeiro resultado visível) | — |
-| 3 | Converter os modelos 3D das motos do MotoGP 4 para o formato do MotoGP 08 | — |
+| 1 | Desempacotar e reempacotar os arquivos do MotoGP 08 sem quebrar o jogo | Ferramentas prontas. Patch de teste (`patches/teste-moto-azul.xdelta`) |
+| 2 | Trocar texturas e pinturas das motos (primeiro resultado visível) | Concluída junto com a fase 3 |
+| 3 | Converter os modelos 3D das motos do MotoGP 4 para o formato do MotoGP 08 | Concluída: `patches/motos-motogp4.xdelta` (aguardando teste no XBSX2) |
 | 4 | Pistas: visual, colisão, traçado da IA, câmeras e cronometragem | — |
 | 5 | Mods de código no executável do 08: câmera livre ativada com L1+R1, opções novas no menu | — |
 
@@ -40,6 +40,42 @@ Os mods são distribuídos como patches xdelta, aplicados sobre a ISO original
 | Patch | O que faz | SHA-1 da ISO resultante |
 | ----- | --------- | ----------------------- |
 | `patches/teste-moto-azul.xdelta` | Teste do fluxo: a moto vermelha do primeiro slot (BIKE01) fica azul | `854013d5cbc693ccd9241ebbd30044493f08ef3b` |
+| `patches/motos-motogp4.xdelta` | As seis motos da MotoGP com carenagem, quadro, motor, escapamento, para-brisa e pinturas do MotoGP 4 | `67dbe53613467e9696ee0e14a79cbae4a7f404fc` |
+
+### Motos do MotoGP 4 no MotoGP 08
+
+![As seis motos convertidas](docs/motos-motogp4.png)
+
+Cada modelo do 08 atende duas ou três equipes e recebeu uma moto do MotoGP 4
+do mesmo fabricante:
+
+| Modelo do 08 | Equipes no 08 | Moto do MotoGP 4 |
+| ------------ | ------------- | ---------------- |
+| BIKE01 | Ducati Marlboro, Alice | Ducati #65 (Capirossi) |
+| BIKE02 | Rizla Suzuki | Suzuki #21 (Hopkins) |
+| BIKE03 | Kawasaki | Kawasaki #56 (Nakano) |
+| BIKE04 | Repsol Honda | Repsol Honda #69 (Hayden) |
+| BIKE05 | Fiat Yamaha, Tech 3 | Gauloises Yamaha #46 (Rossi) |
+| BIKE06 | Hondas satélites (Gresini, LCR, JiR) | Movistar Honda #15 (Gibernau) |
+
+O que muda: carenagem, quadro, motor, escapamento, rabeta, painel e
+para-brisa (com os dois níveis de detalhe). Rodas, garfo, balança, guidão e
+corrente continuam os do 08, então a física e as animações do piloto não
+mudam. As placas de número do 08 ficam escondidas, porque as pinturas do
+MotoGP 4 já trazem os números. Todas as equipes do mesmo modelo usam a mesma
+moto do MotoGP 4, já que no 08 a geometria é compartilhada por modelo.
+
+Para refazer (ou escolher outras motos, com `--map BIKE05=tec_17` por exemplo):
+
+```sh
+pip install numpy pillow
+python3 tools/ps2iso.py extract "MotoGP 08 (USA).iso" extracted/mgp08 BIKES.MIX
+python3 tools/ps2iso.py extract "MotoGP 4 (USA).iso" extracted/mgp4 'SLUS_211.59' MOTOGP.DAT
+python3 tools/gp4dat.py extract extracted/mgp4/SLUS_211.59 extracted/mgp4/MOTOGP.DAT extracted/mgp4_x
+python3 tools/bikes4to08.py build extracted/mgp08/BIKES.MIX extracted/mgp4_x build
+python3 tools/ps2iso.py replace "MotoGP 08 (USA).iso" build/mgp08_m4bikes.iso BIKES.MIX=build/BIKES.MIX
+python3 tools/bikes4to08.py preview build/BIKES.MIX build/preview.png   # confere sem emulador
+```
 
 Para refazer o patch de teste a partir dos arquivos extraídos:
 
@@ -96,6 +132,17 @@ python3 tools/mix.py replace extracted/mgp08/BIKES.MIX BIKES_mod.MIX 'BIKES\BIKE
 
 Lista as texturas de um `.TXD` (RenderWare de PS2) e recolore as paletas,
 trocando os canais de cor. Usado no patch de teste.
+
+### `tools/bikes4to08.py` e `tools/mgp4to08/`
+
+Conversor das motos do MotoGP 4 para o MotoGP 08 (veja acima). Precisa de
+`numpy` e `Pillow`. Os módulos em `tools/mgp4to08/` leem os modelos e as
+texturas dos dois jogos ([SLF/TXD do 08](docs/formats/slf.md),
+[OBJ10001/TEX10001 do MotoGP 4](docs/formats/obj10001.md)) e gravam
+RenderWare. Também têm um rasterizador simples para gerar prévias.
+
+`tools/mix.py replace` ganhou `--rename OLD=NEW` (precisa vir depois dos
+`NAME=FILE`), usado para esconder o `.SLI` de um modelo.
 
 ### `tools/gp4dat.py`
 

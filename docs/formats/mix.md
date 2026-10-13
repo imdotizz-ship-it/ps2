@@ -29,7 +29,7 @@ Uma entrada por arquivo, em sequência, sem alinhamento:
 | u32         | tamanho armazenado |
 | u32         | tamanho descompactado (igual ao armazenado quando não há compressão) |
 | u8          | flag: 0 = normal, 1 = compactado |
-| 8 bytes     | desconhecido. Os 4 primeiros parecem a metade alta de um FILETIME do Windows (2007–2008). Preservar ao reempacotar. |
+| 8 bytes     | data do arquivo: FILETIME do Windows, metade alta e depois metade baixa. Não é hash do nome: renomear uma entrada é seguro. |
 
 ### Nome
 

@@ -6,9 +6,11 @@ Format notes live in docs/formats/mix.md.
 Usage:
   mix.py list    ARCHIVE.MIX                 every file with stored size, unpacked size, flag, name
   mix.py extract ARCHIVE.MIX OUTDIR [PAT..]  extract all files, or those matching glob patterns
-  mix.py replace ARCHIVE.MIX OUT.MIX 'NAME=FILE' [...]
+  mix.py replace ARCHIVE.MIX OUT.MIX 'NAME=FILE' [...] [--rename 'OLD=NEW' ...]
                                              rebuild the archive with some files replaced
                                              (NAME as shown by list, e.g. BIKES\BIKE01\PICTURES\BIKE01.TXD)
+                                             and, optionally, some entries renamed (to hide a file
+                                             from the game, e.g. BIKE01.SLI -> BIKE01.SLX)
 
 Compressed entries (flag 1) are written as-is with a ".packed" suffix until the
 compression scheme is known.
@@ -136,8 +138,18 @@ def cmd_replace(data, entries, args):
         if not sep:
             sys.exit(f"error: expected NAME=FILE, got {spec!r}")
         replacements[name.upper().replace("/", "\\")] = path
+    renames = {}
+    for spec in args.rename or []:
+        old, sep, new = spec.partition("=")
+        if not sep:
+            sys.exit(f"error: expected OLD=NEW, got {spec!r}")
+        renames[old.upper().replace("/", "\\")] = new.upper().replace("/", "\\")
     payloads = []
     for e in entries:
+        new_name = renames.pop(e.name.upper(), None)
+        if new_name is not None:
+            print(f"renamed {e.name} -> {new_name}")
+            e.name = new_name
         path = replacements.pop(e.name.upper(), None)
         if path is None:
             payloads.append(data[e.offset:e.offset + e.stored_size])
@@ -148,8 +160,8 @@ def cmd_replace(data, entries, args):
         e.flag, e.unpacked_size = 0, len(new)
         payloads.append(new)
         print(f"replaced {e.name} ({len(new)} bytes)")
-    if replacements:
-        sys.exit("error: not found in archive: " + ", ".join(replacements))
+    if replacements or renames:
+        sys.exit("error: not found in archive: " + ", ".join(list(replacements) + list(renames)))
     with open(args.out, "wb") as f:
         f.write(write_mix(entries, payloads))
     print(f"wrote {args.out}")
@@ -167,7 +179,8 @@ def main():
     p = sub.add_parser("replace")
     p.add_argument("archive")
     p.add_argument("out")
-    p.add_argument("replacements", nargs="+", metavar="NAME=FILE")
+    p.add_argument("replacements", nargs="*", metavar="NAME=FILE")
+    p.add_argument("--rename", action="append", metavar="OLD=NEW", help="rename an entry")
     args = parser.parse_args()
 
     try:
