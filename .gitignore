@@ -1,0 +1,16 @@
+# Imagens de disco e arquivos extraídos dos jogos: nunca versionar
+# (direitos autorais e tamanho). Só ferramentas, scripts e patches vão para o Git.
+*.iso
+*.bin
+*.img
+*.mdf
+*.nrg
+*.cso
+*.zso
+*.chd
+extracted/
+work/
+build/
+
+__pycache__/
+*.pyc
