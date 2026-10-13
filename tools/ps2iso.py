@@ -9,11 +9,19 @@ Usage:
   ps2iso.py list    GAME.iso [--magic]       every file with size, LBA, first bytes
   ps2iso.py summary GAME.iso                 file count/size grouped by extension and magic
   ps2iso.py extract GAME.iso OUTDIR [PAT..]  extract all files, or those matching glob patterns
+  ps2iso.py replace GAME.iso OUT.iso 'PATH=FILE' [...]
+                                             copy the image with some files replaced (2048-byte ISOs only)
+
+Replacing updates the ISO9660 directory records, which is what the PS2 and
+PCSX2/XBSX2 read. A file that still fits in its original sectors is written in
+place; a larger one is appended at the end of the image. The UDF bridge is left
+untouched.
 """
 
 import argparse
 import fnmatch
 import os
+import shutil
 import struct
 import sys
 from collections import defaultdict
@@ -31,6 +39,7 @@ class Entry:
     lba: int
     size: int
     is_dir: bool
+    record_pos: int = 0  # byte offset of the directory record (2048-byte images)
 
 
 class DiscImage:
@@ -114,7 +123,7 @@ class DiscImage:
             entry_size = struct.unpack_from("<I", rec, 10)[0]
             is_dir = bool(rec[25] & 0x02)
             path = f"{prefix}/{name}" if prefix else name
-            yield Entry(path, entry_lba, entry_size, is_dir)
+            yield Entry(path, entry_lba, entry_size, is_dir, lba * SECTOR + pos - rec_len)
             if is_dir:
                 yield from self._walk_dir(entry_lba, entry_size, path, visited)
 
@@ -216,10 +225,55 @@ def cmd_extract(img, args):
     print(f"\n{count} files extracted to {out_root}")
 
 
+def _set_both_endian(f, pos, value):
+    f.seek(pos)
+    f.write(struct.pack("<I", value) + struct.pack(">I", value))
+
+
+def cmd_replace(img, args):
+    if img.sector_size != SECTOR:
+        sys.exit("error: replace only supports plain 2048-byte-sector ISO images")
+    entries = {e.path.upper(): e for e in img.walk() if not e.is_dir}
+    jobs = []
+    for spec in args.replacements:
+        path, sep, src = spec.partition("=")
+        entry = entries.get(path.upper().replace("\\", "/"))
+        if not sep or entry is None:
+            sys.exit(f"error: {path!r} not found in image (use PATH=FILE)")
+        jobs.append((entry, src))
+
+    volume_sectors = img.volume_size_bytes() // SECTOR
+    img.close()
+    shutil.copyfile(args.image, args.out)
+    with open(args.out, "r+b") as f:
+        for entry, src in jobs:
+            with open(src, "rb") as s:
+                data = s.read()
+            old_sectors = (entry.size + SECTOR - 1) // SECTOR
+            new_sectors = (len(data) + SECTOR - 1) // SECTOR
+            if new_sectors <= old_sectors:
+                lba = entry.lba
+                where = "in place"
+            else:
+                lba = volume_sectors
+                volume_sectors += new_sectors
+                where = "appended"
+            f.seek(lba * SECTOR)
+            f.write(data + bytes(new_sectors * SECTOR - len(data)))
+            if where == "in place" and old_sectors > new_sectors:
+                f.write(bytes((old_sectors - new_sectors) * SECTOR))
+            _set_both_endian(f, entry.record_pos + 2, lba)
+            _set_both_endian(f, entry.record_pos + 10, len(data))
+            print(f"{entry.path}: {len(data)} bytes at LBA {lba} ({where})")
+        _set_both_endian(f, PVD_LBA * SECTOR + 80, volume_sectors)
+        f.truncate(max(volume_sectors * SECTOR, f.seek(0, os.SEEK_END)))
+    print(f"wrote {args.out}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
-    for name in ("info", "list", "summary", "extract"):
+    for name in ("info", "list", "summary", "extract", "replace"):
         p = sub.add_parser(name)
         p.add_argument("image")
         if name == "list":
@@ -227,6 +281,9 @@ def main():
         if name == "extract":
             p.add_argument("outdir")
             p.add_argument("patterns", nargs="*", help="glob patterns, e.g. 'DATA/*.PAK' (case-insensitive)")
+        if name == "replace":
+            p.add_argument("out")
+            p.add_argument("replacements", nargs="+", metavar="PATH=FILE")
     args = parser.parse_args()
 
     try:
@@ -234,7 +291,8 @@ def main():
     except (OSError, ValueError) as exc:
         sys.exit(f"error: {exc}")
     try:
-        {"info": cmd_info, "list": cmd_list, "summary": cmd_summary, "extract": cmd_extract}[args.cmd](img, args)
+        {"info": cmd_info, "list": cmd_list, "summary": cmd_summary, "extract": cmd_extract,
+         "replace": cmd_replace}[args.cmd](img, args)
     except BrokenPipeError:
         pass
     finally:

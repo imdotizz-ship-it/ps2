@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""List and extract Milestone .MIX archives (MotoGP 08 PS2) using only the Python stdlib.
+r"""List, extract and rebuild Milestone .MIX archives (MotoGP 08 PS2) using only the Python stdlib.
 
 Format notes live in docs/formats/mix.md.
 
 Usage:
   mix.py list    ARCHIVE.MIX                 every file with stored size, unpacked size, flag, name
   mix.py extract ARCHIVE.MIX OUTDIR [PAT..]  extract all files, or those matching glob patterns
+  mix.py replace ARCHIVE.MIX OUT.MIX 'NAME=FILE' [...]
+                                             rebuild the archive with some files replaced
+                                             (NAME as shown by list, e.g. BIKES\BIKE01\PICTURES\BIKE01.TXD)
 
 Compressed entries (flag 1) are written as-is with a ".packed" suffix until the
 compression scheme is known.
@@ -19,6 +22,8 @@ import sys
 from dataclasses import dataclass
 
 NAME_KEY_STEP = 0x3A
+HEADER_SIZE = 0x20
+DATA_ALIGN = 32
 
 
 @dataclass
@@ -35,9 +40,40 @@ class MixEntry:
         return self.flag == 1
 
 
+def _xor_name(raw):
+    return bytes(c ^ ((NAME_KEY_STEP * i) & 0xFF) for i, c in enumerate(raw))
+
+
 def decode_name(raw):
-    plain = bytes(c ^ ((NAME_KEY_STEP * i) & 0xFF) for i, c in enumerate(raw))
-    return plain.split(b"\0", 1)[0].decode("latin-1")
+    return _xor_name(raw).split(b"\0", 1)[0].decode("latin-1")
+
+
+def encode_name(name):
+    return _xor_name(name.encode("latin-1") + b"\0")
+
+
+def _align(n):
+    return (n + DATA_ALIGN - 1) // DATA_ALIGN * DATA_ALIGN
+
+
+def write_mix(entries, payloads):
+    """Build an archive. payloads[i] holds the stored bytes of entries[i].
+
+    Matches the original layout: data in table order, each file and the table
+    aligned to 32 bytes with zero padding.
+    """
+    body = bytearray(HEADER_SIZE)
+    toc = bytearray()
+    for e, payload in zip(entries, payloads):
+        body += bytes(_align(len(body)) - len(body))
+        offset = len(body)
+        body += payload
+        raw_name = encode_name(e.name)
+        toc += struct.pack("<I", len(raw_name)) + raw_name
+        toc += struct.pack("<IIIB", offset, len(payload), e.unpacked_size, e.flag) + e.extra
+    body += bytes(_align(len(body)) - len(body))
+    struct.pack_into("<III", body, 0, 0, len(entries), len(body))
+    return bytes(body + toc)
 
 
 def read_mix(path):
@@ -93,6 +129,32 @@ def cmd_extract(data, entries, args):
     print(f"{count} files extracted to {out_root}")
 
 
+def cmd_replace(data, entries, args):
+    replacements = {}
+    for spec in args.replacements:
+        name, sep, path = spec.partition("=")
+        if not sep:
+            sys.exit(f"error: expected NAME=FILE, got {spec!r}")
+        replacements[name.upper().replace("/", "\\")] = path
+    payloads = []
+    for e in entries:
+        path = replacements.pop(e.name.upper(), None)
+        if path is None:
+            payloads.append(data[e.offset:e.offset + e.stored_size])
+            continue
+        with open(path, "rb") as f:
+            new = f.read()
+        # Replacements are stored uncompressed.
+        e.flag, e.unpacked_size = 0, len(new)
+        payloads.append(new)
+        print(f"replaced {e.name} ({len(new)} bytes)")
+    if replacements:
+        sys.exit("error: not found in archive: " + ", ".join(replacements))
+    with open(args.out, "wb") as f:
+        f.write(write_mix(entries, payloads))
+    print(f"wrote {args.out}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -102,6 +164,10 @@ def main():
     p.add_argument("archive")
     p.add_argument("outdir")
     p.add_argument("patterns", nargs="*", help=r"glob patterns, e.g. 'TRACKS\JEREZ\*.SPL' (case-insensitive)")
+    p = sub.add_parser("replace")
+    p.add_argument("archive")
+    p.add_argument("out")
+    p.add_argument("replacements", nargs="+", metavar="NAME=FILE")
     args = parser.parse_args()
 
     try:
@@ -109,7 +175,7 @@ def main():
     except (OSError, ValueError, struct.error) as exc:
         sys.exit(f"error: {exc}")
     try:
-        {"list": cmd_list, "extract": cmd_extract}[args.cmd](data, entries, args)
+        {"list": cmd_list, "extract": cmd_extract, "replace": cmd_replace}[args.cmd](data, entries, args)
     except BrokenPipeError:
         pass
 
