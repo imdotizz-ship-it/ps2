@@ -10,15 +10,17 @@ câmera de TV a mais.
 
 ## Como instalar (iPhone, Android ou PC)
 
-1. Tenha a ISO original **MotoGP 08 (USA)** no aparelho (app Arquivos no
-   iPhone).
+1. Tenha a ISO original **MotoGP 08 (USA)** no aparelho (no iPhone, no app
+   Arquivos: no app do Google Drive, toque nos três pontos da ISO > Abrir em >
+   Salvar em Arquivos).
 2. Abra no navegador:
    **https://raw.githack.com/imdotizz-ship-it/ps2/claude/ps2-game-mods-drastic-3mwmob/patcher/index.html**
-3. Escolha a ISO, toque em **Criar ISO** e depois em **Salvar**. A página
-   baixa só o patch (algumas dezenas de MB); a ISO não sai do aparelho.
+3. Escolha a ISO, ajuste o FOV se quiser, toque em **Criar ISO** e depois em
+   **Salvar**. A página baixa só o patch (51 MB); a ISO é montada no próprio
+   aparelho e não é enviada para lugar nenhum.
 
 No iPhone precisa do iOS 16.4 ou mais novo, e a tela deve ficar ligada até
-terminar. A ISO nova vai para a pasta Downloads do app Arquivos.
+terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 
 ## O que muda
 
@@ -26,8 +28,12 @@ terminar. A ISO nova vai para a pasta Downloads do app Arquivos.
 | --- | -------- |
 | Motos do MotoGP 4 | As seis motos da MotoGP com carenagem, quadro, motor, escapamento, para-brisa e pinturas do MotoGP 4 ([detalhes](#motos-do-motogp-4-no-motogp-08)) |
 | Pistas do MotoGP 4 | Brno, Catalunya, Doha, Donington, Estoril, Jerez, Mugello, Phillip Island, Sachsenring, Sepang e Valência com o visual do MotoGP 4 ([detalhes](docs/formats/pistas.md)) |
-| Bots mais agressivos | Os pilotos da CPU guardam metade da distância uns dos outros: o dobro de toques e quedas entre eles |
-| Câmera de TV | O botão de trocar câmera ganha uma câmera alta, atrás e acima da moto, no lugar da segunda câmera de cockpit |
+| Bots que caem mais | Cada piloto da CPU tem o dobro da chance de cair (na pista, fora dela e de a queda ser um highside), nas três categorias, e guarda metade da distância dos outros |
+| Toques estilo takedown | Um toque entre motos derruba com menos diferença de velocidade (92 → 55) e empurra 2,5 vezes mais forte; bater numa moto caída derruba mais cedo; as rivalidades entre pilotos pioram mais rápido a cada batida |
+| Câmeras | Câmera de TV (alta, atrás da moto) no botão de trocar câmera; tremor da câmera acima de 180 km/h; efeito de velocidade da câmera começando em 100 km/h (era 148) |
+| FOV ajustável | Controle deslizante na página de instalação: 60° a 110° nas câmeras da corrida (70° é o original) |
+| Câmera livre do replay | A câmera Orbit do replay gira mais rápido, vai de baixo até em cima da moto e fica mais longe |
+| Safety Car (experimental, opcional) | A BMW M6 Safety Car do MotoGP 4 como uma equipe e um piloto a mais, marcada na página de instalação |
 
 Nas pistas, colisão, traçado da IA, grid, câmeras de replay e cronometragem
 continuam as do MotoGP 08, então as corridas funcionam normalmente; muda o
@@ -35,12 +41,26 @@ que se vê. Assen, Le Mans e Motegi continuam com o visual do 08 (veja o
 porquê em [pistas](docs/formats/pistas.md#resultado)), e Indianápolis, Laguna
 Seca, Misano e Xangai não existem no MotoGP 4.
 
-**Ainda não testado em emulador nem console.** Tudo foi validado só
-remontando e relendo os arquivos e por prévias renderizadas aqui. O risco
-maior são as pistas: o cenário novo tem até o dobro de triângulos do
-original e o jogo carrega a versão `.SLF` em vez da pré-compilada `.SLI`. Se
-uma pista travar ao carregar, dá para gerar o patch com menos triângulos
-(`--budget` em `tools/tracks4to08.py`).
+**Ainda não testado em emulador nem console.** Tudo foi validado remontando
+e relendo os arquivos, por prévias renderizadas aqui, e a montagem da ISO pela
+página foi testada num navegador (SHA-1 idêntico ao esperado). O risco maior
+são as pistas: o cenário novo tem até o dobro de triângulos do original e o
+jogo carrega a versão `.SLF` em vez da pré-compilada `.SLI`. Se uma pista
+travar ao carregar, dá para gerar o patch com menos triângulos (`--budget` em
+`tools/tracks4to08.py`).
+
+![Largada de cada pista convertida](docs/pistas-motogp4.jpg)
+
+### Safety Car (opcional)
+
+A BMW M6 da pintura "Safety Car" do MotoGP 4 vira o modelo `BIKE07` e ganha
+uma equipe e um piloto próprios. Limites, porque o motor do 08 só simula
+motos: ela anda e inclina como moto (física da Honda RC212V), as rodas não
+giram, o piloto do 08 fica sentado dentro dela, e a forma de colisão foi
+esticada para o tamanho do carro (1,9 m × 4,8 m). O jogo não tem textos para
+ela, então nos menus aparecem os nomes da Repsol Honda e do Hayden. Como a
+grade passa a ter 19 pilotos, pode travar nos menus ou ao montar o grid: por
+isso é uma opção separada na página.
 
 ## Desafio principal
 
@@ -58,20 +78,42 @@ jogos e convertido de um formato para o outro.
 | 2 | Trocar texturas e pinturas das motos | Concluída junto com a fase 3 |
 | 3 | Converter os modelos 3D das motos do MotoGP 4 para o formato do MotoGP 08 | Concluída |
 | 4 | Pistas: visual do MotoGP 4 sobre colisão, IA, câmeras e cronometragem do 08 | Concluída em 11 das 14 pistas em comum |
-| 5 | Jogabilidade: IA, câmeras | IA e câmera de TV por dados ([BML](docs/formats/bml.md)). Câmera livre com L1+R1: não feita (exige mudar o código do jogo; veja abaixo) |
+| 5 | Jogabilidade: IA, câmeras, colisões, veículo novo | Feito por dados ([BML](docs/formats/bml.md)): quedas, takedowns, câmeras, FOV na instalação, Safety Car experimental. Câmera livre com L1+R1 e o resto que exige mudar o código do jogo: não feito (veja abaixo) |
 
-Câmera livre: o MotoGP 08 já tem uma câmera que gira em volta da moto no
-**Replay** (modo Orbit). Uma câmera livre durante a corrida, ligada por
-L1+R1, exige alterar o executável do jogo, e isso não dá para fazer com
-segurança sem um emulador para testar.
+### O que não foi feito
+
+Estes pedidos exigem escrever código novo dentro do executável do PS2
+(`SLUS_218.11`), e isso não dá para fazer sem um emulador para testar: um erro
+trava a ISO inteira. O emulador Play! (que roda sem BIOS) não pôde ser baixado
+aqui porque a política de rede deste ambiente bloqueia os downloads do
+github.com.
+
+- **Câmera livre com L1+R1 durante a corrida** (câmera de desenvolvedor). O
+  mais perto disso hoje é a câmera Orbit do Replay, que ficou mais livre.
+- **FOV ajustável dentro do jogo.** O FOV é escolhido na página de
+  instalação.
+- **Motion blur forte.** O PS2 não tem desfoque de movimento nas câmeras de
+  corrida; o que existe é o efeito de velocidade da câmera, que agora começa
+  mais cedo, e o tremor em alta velocidade.
+- **Sistema de takedown do Burnout** (câmera lenta, pontuação). Os toques
+  derrubam mais, mas sem a câmera e as regras do Burnout.
+- **Pilotos se xingando com caixas de diálogo e áudio.** Os pilotos já fazem
+  gestos de raiva (animações `rabbia`) e têm rivalidades, que agora pioram
+  mais rápido; texto e voz novos não.
+- **Ragdoll nas quedas e deformação estilo Burnout.** As quedas do 08 são
+  animações prontas, e os modelos não deformam.
+- **Física de carro para o Safety Car.** O motor só simula motos.
 
 ## Patches
 
 O patch completo fica em `patcher/` (página `index.html`, `manifest.json` e as
 partes `part-NN.patch`), aplicado pela página acima ou no PC com
-`python3 tools/isopatch.py apply "MotoGP 08 (USA).iso" patcher saida.iso`. Ele
+`python3 tools/isopatch.py apply "MotoGP 08 (USA).iso" patcher saida.iso`
+(com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
-`25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1.
+`25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
+(`5bd3e6f7f1d717908b4fb761902b4b6162ae7cb8` com FOV 70 e sem Safety Car; as
+outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou
 `xdelta3 -d -s "MotoGP 08 (USA).iso" PATCH.xdelta SAIDA.iso`):
@@ -230,17 +272,14 @@ python3 tools/isopatch.py apply "MotoGP 08 (USA).iso" patcher saida.iso
 
 ```sh
 pip install numpy scipy pillow
-python3 tools/ps2iso.py extract "MotoGP 08 (USA).iso" extracted/mgp08
-python3 tools/ps2iso.py extract "MotoGP 4 (USA).iso" extracted/mgp4 'SLUS_211.59' MOTOGP.DAT
-python3 tools/gp4dat.py extract extracted/mgp4/SLUS_211.59 extracted/mgp4/MOTOGP.DAT extracted/mgp4_x
-python3 tools/bikes4to08.py build extracted/mgp08/BIKES.MIX extracted/mgp4_x build
-python3 tools/data08.py extracted/mgp08/DATA.MIX build
-for t in BRNO CATALUN DOHA DONNING ESTORIL JEREZ MUGELLO PHILLIPI SACHSEN SEPANG VALENCIA; do
-  python3 tools/tracks4to08.py build extracted/mgp08/TRACKS/$t.MIX extracted/mgp4_x build/tracks
-done
-python3 tools/isopatch.py make "MotoGP 08 (USA).iso" patcher BIKES.MIX=build/BIKES.MIX DATA.MIX=build/DATA.MIX \
-  $(for t in BRNO CATALUN DOHA DONNING ESTORIL JEREZ MUGELLO PHILLIPI SACHSEN SEPANG VALENCIA; do echo TRACKS/$t.MIX=build/tracks/$t.MIX; done)
+tools/build_patch.sh "MotoGP 08 (USA).iso" "MotoGP 4 (USA).iso" build   # cerca de uma hora
 ```
+
+### `tools/safetycar.py`
+
+Põe o Safety Car do MotoGP 4 no `BIKES.MIX` como `BIKE07`
+([código](tools/mgp4to08/car.py)); `data08.py --safety-car` cria a equipe, o
+piloto e o veículo que o usam.
 
 ## Regras do repositório
 

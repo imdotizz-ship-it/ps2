@@ -65,12 +65,12 @@ avisa quando a cobertura fica abaixo de 40%.
 | ----- | --------------- | -------- |
 | Brno | 77% | convertida |
 | Catalunya | 76% | convertida |
-| Doha | 52% | convertida (as áreas de escape asfaltadas do 08 não contam) |
+| Doha | 49% | convertida (as áreas de escape asfaltadas do 08 não contam) |
 | Donington | 79% | convertida |
-| Estoril | 95% | convertida |
+| Estoril | 90% | convertida |
 | Jerez | 84% | convertida |
-| Mugello | 79% | convertida |
-| Phillip Island | 74% | convertida |
+| Mugello | 76% | convertida |
+| Phillip Island | 73% | convertida |
 | Sachsenring | 84% | convertida |
 | Sepang | 93% | convertida |
 | Valência | 85% | convertida |

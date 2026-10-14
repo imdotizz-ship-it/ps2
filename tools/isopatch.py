@@ -14,7 +14,8 @@ archive instead of being stored again, and identical new files are stored once.
 Usage:
   isopatch.py make  ORIGINAL.iso PATCH_DIR ISO_PATH=FILE... [--iso OUT.iso] [--name NAME] [--note TEXT]...
                     [--option ID LABEL DEFAULT v1:ISO_PATH=FILE,v2:ISO_PATH=FILE,...]
-  isopatch.py apply ORIGINAL.iso PATCH_DIR OUT.iso [--option ID=VALUE]
+                    [--profile ID LABEL NOTE ISO_PATH=FILE,...,@VALUE:ISO_PATH=FILE,...]
+  isopatch.py apply ORIGINAL.iso PATCH_DIR OUT.iso [--option ID=VALUE] [--profile ID]
 
 An option is a choice made when the image is built (the field of view, say): one
 replacement file per value, all of the same size.
@@ -132,48 +133,51 @@ def _plan(img, entries, src_size, replacements, log=True):
     return merged, tgt_size
 
 
-def make(iso, out_dir, replacements, out_iso=None, name="patched.iso", notes=(), option=None):
-    """option: (id, label, default value, {value: [ISO_PATH=FILE overrides]}), e.g. one
-    DATA.MIX per field of view; every value must give files of the same sizes"""
-    img = DiscImage(iso)
-    if img.sector_size != SECTOR:
-        sys.exit("error: only plain 2048-byte-sector ISO images are supported")
-    entries = {e.path.upper(): e for e in img.walk() if not e.is_dir}
-    src_size = os.path.getsize(iso)
+class _Store:
+    """new data, gzip-compressed in pieces of at most CHUNK bytes, identical pieces kept once"""
+
+    def __init__(self, out_dir):
+        self.dir = out_dir; self.chunks = []; self.of = {}; self.parts = []; self.f = None; self.size = 0
+
+    def add(self, data):
+        ids = []
+        for k in range(0, len(data), CHUNK):
+            piece = data[k:k + CHUNK]
+            h = _sha1(piece)
+            if h not in self.of:
+                comp = gzip.compress(piece, 9, mtime=0)
+                if self.f is None or self.size + len(comp) > PART:
+                    if self.f:
+                        self.f.close()
+                    self.parts.append("part-%02d.patch" % len(self.parts))
+                    self.f = open(os.path.join(self.dir, self.parts[-1]), "wb"); self.size = 0
+                self.of[h] = len(self.chunks)
+                self.chunks.append([len(self.parts) - 1, self.size, len(comp), len(piece)])
+                self.f.write(comp); self.size += len(comp)
+            ids.append(self.of[h])
+        return ids
+
+    def close(self):
+        if self.f:
+            self.f.close()
+
+
+def _compile(img, entries, src_size, replacements, option, store, log=True):
+    """ops of one target image; option values (same layout) become "v" pieces"""
     def with_overrides(over):
         keys = {o.partition("=")[0].upper() for o in over}
         return [r for r in replacements if r.partition("=")[0].upper() not in keys] + list(over)
-    base, tgt_size = _plan(img, entries, src_size, with_overrides(option[3][option[2]]) if option else replacements)
+    base, tgt_size = _plan(img, entries, src_size, with_overrides(option[3][option[2]]) if option else replacements, log)
     variants = {}
     if option:
         for v, over in option[3].items():
             plan, size = _plan(img, entries, src_size, with_overrides(over), log=False)
             if size != tgt_size or len(plan) != len(base) or any(
-                    a[0] != b[0] or (a[0] == "lit" and len(a[1]) != len(b[1])) or (a[0] != "lit" and a != b)
-                    for a, b in zip(plan, base)):
+                    x[0] != y[0] or (x[0] == "lit" and len(x[1]) != len(y[1])) or (x[0] != "lit" and x != y)
+                    for x, y in zip(plan, base)):
                 sys.exit(f"error: option {option[0]}={v} changes the layout (sizes must not change)")
             variants[v] = plan
     diff = {i for i, s in enumerate(base) if s[0] == "lit" and any(variants[v][i][1] != s[1] for v in variants)}
-    os.makedirs(out_dir, exist_ok=True)
-    chunks = []; chunk_of = {}; parts = []; part = None; part_size = 0
-    def store(data):
-        nonlocal part, part_size
-        ids = []
-        for k in range(0, len(data), CHUNK):
-            piece = data[k:k + CHUNK]
-            h = _sha1(piece)
-            if h not in chunk_of:
-                comp = gzip.compress(piece, 9, mtime=0)
-                if part is None or part_size + len(comp) > PART:
-                    if part:
-                        part.close()
-                    parts.append("part-%02d.patch" % len(parts))
-                    part = open(os.path.join(out_dir, parts[-1]), "wb"); part_size = 0
-                chunk_of[h] = len(chunks)
-                chunks.append([len(parts) - 1, part_size, len(comp), len(piece)])
-                part.write(comp); part_size += len(comp)
-            ids.append(chunk_of[h])
-        return ids
     final = []
     for i, s in enumerate(base):
         if s[0] == "src":
@@ -181,26 +185,55 @@ def make(iso, out_dir, replacements, out_iso=None, name="patched.iso", notes=(),
         elif s[0] == "zero":
             final.append(["z", s[1]])
         elif i in diff:
-            final.append(["v", option[0], {str(v): store(variants[v][i][1]) for v in variants}])
+            final.append(["v", option[0], {str(v): store.add(variants[v][i][1]) for v in variants}])
         else:
-            final += [["c", c] for c in store(s[1])]
-    if part:
-        part.close()
-    # checksums of the patched image (every option value), and the default image if asked
+            final += [["c", c] for c in store.add(s[1])]
+    return final, tgt_size
+
+
+def make(iso, out_dir, replacements, out_iso=None, name="patched.iso", notes=(), option=None, profiles=()):
+    """option: (id, label, default value, {value: [ISO_PATH=FILE overrides]}, unit, note), e.g. one
+    DATA.MIX per field of view, every value giving files of the same sizes.
+    profiles: [(id, label, note, [ISO_PATH=FILE overrides], {value: [overrides]} or None)]:
+    alternative images (an experimental extra, say) chosen with a checkbox"""
+    img = DiscImage(iso)
+    if img.sector_size != SECTOR:
+        sys.exit("error: only plain 2048-byte-sector ISO images are supported")
+    entries = {e.path.upper(): e for e in img.walk() if not e.is_dir}
+    src_size = os.path.getsize(iso)
+    os.makedirs(out_dir, exist_ok=True)
+    store = _Store(out_dir)
+    ops, tgt_size = _compile(img, entries, src_size, replacements, option, store)
+    built = []
+    for pid, label, note, over, opt_over in profiles:
+        keys = {o.partition("=")[0].upper() for o in over}
+        repl = [r for r in replacements if r.partition("=")[0].upper() not in keys] + list(over)
+        popt = option and (option[:3] + (opt_over or option[3],) + tuple(option[4:]))
+        print(f"profile {pid}:")
+        pops, psize = _compile(img, entries, src_size, repl, popt, store)
+        built.append({"id": pid, "label": label, "note": note, "ops": pops, "size": psize})
+    store.close()
     src = open(iso, "rb")
-    values = [str(v) for v in variants] or [None]
-    shas = {}
-    for v in values:
-        sha = hashlib.sha1()
-        write = out_iso and (v is None or v == str(option[2]))
-        out = open(out_iso, "wb") if write else None
-        for piece in _pieces(final, src, chunks, out_dir, parts, {option[0]: v} if option else {}):
-            sha.update(piece)
-            if out:
-                out.write(piece)
-        if out:
-            out.close()
-        shas[v] = sha.hexdigest()
+    def shas_of(the_ops, write_default):
+        values = [str(v) for v in option[3]] if option else [None]
+        out = {}
+        for v in values:
+            sha = hashlib.sha1()
+            w = write_default and (v is None or v == str(option[2]))
+            f = open(out_iso, "wb") if w else None
+            for piece in _pieces(the_ops, src, store.chunks, out_dir, store.parts, {option[0]: v} if option else {}):
+                sha.update(piece)
+                if f:
+                    f.write(piece)
+            if f:
+                f.close()
+            out[v] = sha.hexdigest()
+        return out
+    shas = shas_of(ops, bool(out_iso))
+    for pr in built:
+        pr["sha1"] = shas_of(pr["ops"], False)
+        if not option:
+            pr["sha1"] = pr["sha1"][None]
     samples = []
     for off in (0, PVD_LBA * SECTOR, src_size // 3, src_size // 2, 2 * src_size // 3, src_size - 65536):
         src.seek(off); samples.append([off, 65536, _sha1(src.read(65536))])
@@ -212,19 +245,21 @@ def make(iso, out_dir, replacements, out_iso=None, name="patched.iso", notes=(),
         "target": {"size": tgt_size, "name": name,
                    "sha1": shas[str(option[2])] if option else shas[None]},
         "parts": [{"file": p, "size": os.path.getsize(os.path.join(out_dir, p)),
-                   "sha1": _sha1(open(os.path.join(out_dir, p), "rb").read())} for p in parts],
-        "chunks": chunks,
-        "ops": final,
+                   "sha1": _sha1(open(os.path.join(out_dir, p), "rb").read())} for p in store.parts],
+        "chunks": store.chunks,
+        "ops": ops,
     }
     if option:
         manifest["options"] = [{"id": option[0], "label": option[1], "default": str(option[2]),
-                                "values": [str(v) for v in variants], "sha1": shas,
+                                "values": [str(v) for v in option[3]], "sha1": shas,
                                 "unit": option[4] if len(option) > 4 else "",
                                 "note": option[5] if len(option) > 5 else ""}]
+    if built:
+        manifest["profiles"] = built
     with open(os.path.join(out_dir, "manifest.json"), "w") as f:
         json.dump(manifest, f, separators=(",", ":"))
     total = sum(p["size"] for p in manifest["parts"])
-    print(f"patch: {len(parts)} parts, {total / 2**20:.1f} MiB; target {tgt_size} bytes, sha1 {manifest['target']['sha1']}")
+    print(f"patch: {len(store.parts)} parts, {total / 2**20:.1f} MiB; target {tgt_size} bytes, sha1 {manifest['target']['sha1']}")
 
 
 def _gap(a, b, src_size):
@@ -262,8 +297,14 @@ def _pieces(ops, src, chunks, patch_dir, parts, choice=None):
         f.close()
 
 
-def apply(iso, patch_dir, out_iso, options=()):
+def apply(iso, patch_dir, out_iso, options=(), profile=None):
     m = json.load(open(os.path.join(patch_dir, "manifest.json")))
+    ops, want_sha = m["ops"], None
+    if profile:
+        pr = next((p for p in m.get("profiles", []) if p["id"] == profile), None)
+        if pr is None:
+            sys.exit(f"error: unknown profile {profile!r}")
+        ops, want_sha = pr["ops"], pr["sha1"]
     choice = {o["id"]: o["default"] for o in m.get("options", [])}
     for spec in options:
         k, _, v = spec.partition("=")
@@ -282,11 +323,13 @@ def apply(iso, patch_dir, out_iso, options=()):
             sys.exit("error: this is not the expected original ISO (contents differ)")
     sha = hashlib.sha1()
     with open(out_iso, "wb") as out:
-        for piece in _pieces(m["ops"], src, m["chunks"], patch_dir, [p["file"] for p in m["parts"]], choice):
+        for piece in _pieces(ops, src, m["chunks"], patch_dir, [p["file"] for p in m["parts"]], choice):
             sha.update(piece); out.write(piece)
     want = m["target"]["sha1"]
     for o in m.get("options", []):
         want = o["sha1"][choice[o["id"]]]
+    if want_sha is not None:
+        want = want_sha[choice[m["options"][0]["id"]]] if isinstance(want_sha, dict) else want_sha
     ok = sha.hexdigest() == want
     print(f"wrote {out_iso}; sha1 {sha.hexdigest()} ({'ok' if ok else 'MISMATCH'})")
     if not ok:
@@ -302,10 +345,14 @@ def main():
     p.add_argument("--note", action="append", default=[], help="a line describing the patch (repeatable)")
     p.add_argument("--option", nargs=4, metavar=("ID", "LABEL", "DEFAULT", "VALUES"),
                    help="a choice in the patch: VALUES is v1:ISO_PATH=FILE,v2:ISO_PATH=FILE,...")
+    p.add_argument("--profile", nargs=4, action="append", default=[], metavar=("ID", "LABEL", "NOTE", "OVERRIDES"),
+                   help="an alternative image: OVERRIDES is ISO_PATH=FILE,...; add @VALUE:ISO_PATH=FILE "
+                        "items to override option values too")
     p.add_argument("--option-unit", default="", help="unit shown after the option value")
     p.add_argument("--option-note", default="", help="a line explaining the option")
     p = sub.add_parser("apply"); p.add_argument("iso"); p.add_argument("patch_dir"); p.add_argument("out_iso")
     p.add_argument("--option", action="append", default=[], metavar="ID=VALUE")
+    p.add_argument("--profile", help="an alternative image of the patch (see its manifest)")
     a = ap.parse_args()
     if a.cmd == "make":
         option = None
@@ -316,9 +363,19 @@ def main():
                 v, _, over = item.partition(":")
                 values.setdefault(v, []).append(over)
             option = (oid, label, default, values, a.option_unit, a.option_note)
-        make(a.iso, a.patch_dir, a.replacements, a.out_iso, a.name, a.note, option)
+        profiles = []
+        for pid, label, note, spec in a.profile:
+            over = []; opt_over = {}
+            for item in spec.split(","):
+                if item.startswith("@"):
+                    v, _, o = item[1:].partition(":")
+                    opt_over.setdefault(v, []).append(o)
+                else:
+                    over.append(item)
+            profiles.append((pid, label, note, over, opt_over or None))
+        make(a.iso, a.patch_dir, a.replacements, a.out_iso, a.name, a.note, option, profiles)
     else:
-        apply(a.iso, a.patch_dir, a.out_iso, a.option)
+        apply(a.iso, a.patch_dir, a.out_iso, a.option, a.profile)
 
 
 if __name__ == "__main__":

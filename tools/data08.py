@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 r"""Gameplay data mods for MotoGP 08 (PS2), all in DATA.MIX (.BML files, see bml.py).
 
+  DATA\DB_PILOTS*.BML   every CPU rider has twice the chance of falling (on track, off track,
+                        and of a fall being a highside), in all three classes
   DATA\AIPARAMS.BML     the CPU riders keep half the distance from each other: avoidance
                         distance, collision boxes and braking distance are halved, overtakes
                         pass closer and defending riders steer harder (the values that concern
@@ -15,8 +17,13 @@ r"""Gameplay data mods for MotoGP 08 (PS2), all in DATA.MIX (.BML files, see bml
                         effect of the cameras starting earlier; the field of view of the race
                         cameras (--fov, cockpit degrees; 70 is the original)
 
+  --safety-car (experimental) DB_VEHICLES, DB_TEAMS and DB_PILOTS get the MotoGP 4 safety
+                        car as an extra vehicle, team and rider (the model comes from
+                        safetycar.py); it uses the physics, sound and menu names of the Honda
+                        team, as the game has no texts for it
+
 Usage:
-  data08.py DATA.MIX OUT_DIR [--fov DEG]   writes OUT_DIR/DATA.MIX (put it back with ps2iso.py)
+  data08.py DATA.MIX OUT_DIR [--fov DEG] [--safety-car]   writes OUT_DIR/DATA.MIX
 """
 import argparse
 import copy
@@ -58,6 +65,24 @@ FOV_DEFAULT = 70
 
 def ai_params(d):
     return bml.set_values(d, AI_CHANGES)
+
+
+FALLS = ("ProbFall_OnTrack", "ProbFall_OutTrack", "ProbHiSide")
+
+
+def pilots(d):
+    """every CPU rider, at every difficulty: twice the chance of falling (capped at 1)"""
+    root = bml.load(d)
+    def walk(n):
+        for k in FALLS:
+            v = bml.get_text(n, k)
+            if v is not None:
+                bml.set_text(n, k, ("%.4f" % min(1.0, 2 * float(v))).rstrip("0").rstrip("."))
+        for c in n.children:
+            if c.kind == 1:
+                walk(c)
+    walk(root)
+    return bml.save(root)
 
 
 def gameconfig(d):
@@ -105,10 +130,51 @@ def cameras(d, fov=FOV_DEFAULT):
     return bml.save(root)
 
 
-def build(mix_path, fov=FOV_DEFAULT):
+SAFETY_CAR = {"vehicle": "BMW_M6_Safety_Car", "team": "Safety_Car", "pilot": "SafetyCar",
+              "model": "Bikes\\Bike07\\Bike07.slf", "like_vehicle": "Honda_RC212V",
+              "like_team": "Repsol_Honda", "like_pilot": "Hayden", "number": "99"}
+
+
+def _clone_entry(root, key, new_key):
+    src = next(c for c in root.children if c.attrs and c.attrs[0][1] == key)
+    n = copy.deepcopy(src); n.attrs[0][1] = new_key
+    root.children.append(n)
+    return n
+
+
+def add_vehicle(d):
+    """the safety car as a vehicle: the BIKE07 model, physics and sound of the Honda"""
+    root = bml.load(d)
+    v = _clone_entry(root, SAFETY_CAR["like_vehicle"], SAFETY_CAR["vehicle"])
+    for gfx in bml.elements(v, "Gfx") + bml.elements(v, "GfxGem"):
+        bml.set_text(gfx, "Model3d", SAFETY_CAR["model"])
+    return bml.save(root)
+
+
+def add_team(d):
+    root = bml.load(d)
+    t = _clone_entry(root, SAFETY_CAR["like_team"], SAFETY_CAR["team"])
+    bml.elements(t, "Vehicle")[0].attrs[0][1] = SAFETY_CAR["vehicle"]
+    return bml.save(root)
+
+
+def add_pilot(d):
+    root = bml.load(d)
+    p = _clone_entry(root, SAFETY_CAR["like_pilot"], SAFETY_CAR["pilot"])
+    bml.elements(p, "Team")[0].attrs[0][1] = SAFETY_CAR["team"]
+    bml.set_text(bml.elements(p, "Menu")[0], "Number", SAFETY_CAR["number"])
+    return bml.save(root)
+
+
+def build(mix_path, fov=FOV_DEFAULT, safety_car=False):
     data, entries = mix.read_mix(mix_path)
     jobs = {"DATA\\AIPARAMS.BML": ai_params, "DATA\\DB_GAMECONFIG.BML": gameconfig,
-            "DATA\\CAMERAS.BML": lambda d: cameras(d, fov)}
+            "DATA\\CAMERAS.BML": lambda d: cameras(d, fov), "DATA\\DB_PILOTS.BML": pilots,
+            "DATA\\DB_PILOTS_125CC.BML": pilots, "DATA\\DB_PILOTS_250CC.BML": pilots}
+    if safety_car:
+        jobs["DATA\\DB_VEHICLES.BML"] = add_vehicle
+        jobs["DATA\\DB_TEAMS.BML"] = add_team
+        jobs["DATA\\DB_PILOTS.BML"] = lambda d: add_pilot(pilots(d))
     payloads = []
     for e in entries:
         p = data[e.offset:e.offset + e.stored_size]
@@ -125,10 +191,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("mix"); ap.add_argument("out")
     ap.add_argument("--fov", type=int, default=FOV_DEFAULT, help="cockpit field of view in degrees (original 70)")
+    ap.add_argument("--safety-car", action="store_true",
+                    help="experimental: an extra team and rider with the MotoGP 4 safety car (BIKE07, see safetycar.py)")
     a = ap.parse_args()
     if not 40 <= a.fov <= 140:
         sys.exit("error: --fov must be between 40 and 140")
-    out_data, names = build(a.mix, a.fov)
+    out_data, names = build(a.mix, a.fov, a.safety_car)
     os.makedirs(a.out, exist_ok=True)
     out = os.path.join(a.out, os.path.basename(a.mix))
     with open(out, "wb") as f:
