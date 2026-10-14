@@ -255,7 +255,7 @@ def sample_grid(H, xz, res=1.0, half=1400):
     return out
 
 
-def correction_field(xz08, y08_raw, H, cell=8.0, half=1500, iters=200):
+def correction_field(xz08, y08_raw, H, cell=8.0, half=1500, iters=200, outlier=12.0):
     """smooth dy(x,z) = collision height - MotoGP 4 height, from vertices lying over the collision
     (H from height_grid(.., layers=True): under a bridge, the layer closest to the vertex)"""
     hi = sample_grid(H[0], xz08); lo = sample_grid(H[1], xz08)
@@ -265,7 +265,7 @@ def correction_field(xz08, y08_raw, H, cell=8.0, half=1500, iters=200):
     ok = ~np.isnan(h)
     d = h[ok] - y08_raw[ok]
     med = np.median(d)
-    keep = np.abs(d - med) < 12
+    keep = np.abs(d - med) < outlier
     n = int(2 * half / cell); origin = np.array([-half, -half], float)
     S = np.zeros((n, n)); C = np.zeros((n, n))
     g = ((xz08[ok][keep] - origin) / cell).astype(int)

@@ -55,6 +55,31 @@ class Node:
             yield from c.walk(here)
 
 
+def elements(n, name, **attrs):
+    """child elements of `n` called `name` whose attributes match `attrs`"""
+    return [c for c in n.children if c.kind == 1 and c.name == name
+            and all(dict((a[0], a[1]) for a in c.attrs).get(k) == v for k, v in attrs.items())]
+
+
+def get_text(n, name):
+    """text of the child element `name`, or None"""
+    e = elements(n, name)
+    return e[0].text() if e else None
+
+
+def set_text(n, name, value, create=False):
+    """set the text of the child element `name` (every one of that name); with `create`,
+    add it when missing"""
+    e = elements(n, name)
+    if not e:
+        if not create:
+            raise KeyError(name)
+        n.children.append(element(name, text=value))
+        return
+    for c in e:
+        next(t for t in c.children if t.kind == 3).value = value
+
+
 def _u32(*v):
     return struct.pack("<%dI" % len(v), *v)
 
