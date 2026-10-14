@@ -1,11 +1,46 @@
 # MotoGP 08 + MotoGP 4 (PS2)
 
 Mod de PS2 que usa o **MotoGP 08** (Milestone/Capcom, 2008) como base e traz as
-**motos e pistas do MotoGP 4** (Namco, 2005).
+**motos e pistas do MotoGP 4** (Namco, 2005), com bots mais agressivos e uma
+câmera de TV a mais.
 
 - **Alvo:** XBSX2 (versão do PCSX2 para Xbox) e PCSX2.
-- **Entrega:** uma ISO modificada do MotoGP 08, distribuída como patch (xdelta)
-  aplicado sobre a ISO original de cada jogador.
+- **Entrega:** a ISO modificada é montada a partir da ISO original de cada
+  jogador, por uma página que funciona no navegador do iPhone, Android ou PC.
+
+## Como instalar (iPhone, Android ou PC)
+
+1. Tenha a ISO original **MotoGP 08 (USA)** no aparelho (app Arquivos no
+   iPhone).
+2. Abra no navegador:
+   **https://raw.githack.com/imdotizz-ship-it/ps2/claude/ps2-game-mods-drastic-3mwmob/patcher/index.html**
+3. Escolha a ISO, toque em **Criar ISO** e depois em **Salvar**. A página
+   baixa só o patch (algumas dezenas de MB); a ISO não sai do aparelho.
+
+No iPhone precisa do iOS 16.4 ou mais novo, e a tela deve ficar ligada até
+terminar. A ISO nova vai para a pasta Downloads do app Arquivos.
+
+## O que muda
+
+| Mod | Detalhes |
+| --- | -------- |
+| Motos do MotoGP 4 | As seis motos da MotoGP com carenagem, quadro, motor, escapamento, para-brisa e pinturas do MotoGP 4 ([detalhes](#motos-do-motogp-4-no-motogp-08)) |
+| Pistas do MotoGP 4 | Brno, Catalunya, Doha, Donington, Estoril, Jerez, Mugello, Phillip Island, Sachsenring, Sepang e Valência com o visual do MotoGP 4 ([detalhes](docs/formats/pistas.md)) |
+| Bots mais agressivos | Os pilotos da CPU guardam metade da distância uns dos outros: o dobro de toques e quedas entre eles |
+| Câmera de TV | O botão de trocar câmera ganha uma câmera alta, atrás e acima da moto, no lugar da segunda câmera de cockpit |
+
+Nas pistas, colisão, traçado da IA, grid, câmeras de replay e cronometragem
+continuam as do MotoGP 08, então as corridas funcionam normalmente; muda o
+que se vê. Assen, Le Mans e Motegi continuam com o visual do 08 (veja o
+porquê em [pistas](docs/formats/pistas.md#resultado)), e Indianápolis, Laguna
+Seca, Misano e Xangai não existem no MotoGP 4.
+
+**Ainda não testado em emulador nem console.** Tudo foi validado só
+remontando e relendo os arquivos e por prévias renderizadas aqui. O risco
+maior são as pistas: o cenário novo tem até o dobro de triângulos do
+original e o jogo carrega a versão `.SLF` em vez da pré-compilada `.SLI`. Se
+uma pista travar ao carregar, dá para gerar o patch com menos triângulos
+(`--budget` em `tools/tracks4to08.py`).
 
 ## Desafio principal
 
@@ -19,28 +54,32 @@ jogos e convertido de um formato para o outro.
 | Fase | Objetivo | Status |
 | ---- | -------- | ------ |
 | 0 | Mapear os arquivos das duas ISOs (pacotes, compressão, onde ficam motos e pistas) | Concluída: `.MIX` do MotoGP 08 ([formato](docs/formats/mix.md)) e `MOTOGP.DAT` do MotoGP 4 ([formato](docs/formats/gp4dat.md)) abertos |
-| 1 | Desempacotar e reempacotar os arquivos do MotoGP 08 sem quebrar o jogo | Ferramentas prontas. Patch de teste (`patches/teste-moto-azul.xdelta`) |
-| 2 | Trocar texturas e pinturas das motos (primeiro resultado visível) | Concluída junto com a fase 3 |
-| 3 | Converter os modelos 3D das motos do MotoGP 4 para o formato do MotoGP 08 | Concluída: `patches/motos-motogp4.xdelta` (aguardando teste no XBSX2) |
-| 4 | Pistas: visual, colisão, traçado da IA, câmeras e cronometragem | — |
-| 5 | Mods de código no executável do 08: câmera livre ativada com L1+R1, opções novas no menu | — |
+| 1 | Desempacotar e reempacotar os arquivos do MotoGP 08 sem quebrar o jogo | Concluída |
+| 2 | Trocar texturas e pinturas das motos | Concluída junto com a fase 3 |
+| 3 | Converter os modelos 3D das motos do MotoGP 4 para o formato do MotoGP 08 | Concluída |
+| 4 | Pistas: visual do MotoGP 4 sobre colisão, IA, câmeras e cronometragem do 08 | Concluída em 11 das 14 pistas em comum |
+| 5 | Jogabilidade: IA, câmeras | IA e câmera de TV por dados ([BML](docs/formats/bml.md)). Câmera livre com L1+R1: não feita (exige mudar o código do jogo; veja abaixo) |
 
-A fase 4 é a mais difícil. Uma pista não é só o visual: o jogo precisa da
-colisão, do traçado que a IA segue, dos pontos de largada, dos setores de
-cronometragem e das câmeras.
+Câmera livre: o MotoGP 08 já tem uma câmera que gira em volta da moto no
+**Replay** (modo Orbit). Uma câmera livre durante a corrida, ligada por
+L1+R1, exige alterar o executável do jogo, e isso não dá para fazer com
+segurança sem um emulador para testar.
 
 ## Patches
 
-Os mods são distribuídos como patches xdelta, aplicados sobre a ISO original
-**MotoGP 08 (USA)** (SHA-1 `25cdef00791ac502dfad8a21b1f39b64b58fc361`):
+O patch completo fica em `patcher/` (página `index.html`, `manifest.json` e as
+partes `part-NN.patch`), aplicado pela página acima ou no PC com
+`python3 tools/isopatch.py apply "MotoGP 08 (USA).iso" patcher saida.iso`. Ele
+parte da ISO original **MotoGP 08 (USA)** (SHA-1
+`25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1.
 
-- Android: app UniPatcher (arquivo da ROM = ISO original, patch = `.xdelta`).
-- PC: Delta Patcher, ou `xdelta3 -d -s "MotoGP 08 (USA).iso" PATCH.xdelta SAIDA.iso`.
+Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou
+`xdelta3 -d -s "MotoGP 08 (USA).iso" PATCH.xdelta SAIDA.iso`):
 
 | Patch | O que faz | SHA-1 da ISO resultante |
 | ----- | --------- | ----------------------- |
 | `patches/teste-moto-azul.xdelta` | Teste do fluxo: a moto vermelha do primeiro slot (BIKE01) fica azul | `854013d5cbc693ccd9241ebbd30044493f08ef3b` |
-| `patches/motos-motogp4.xdelta` | As seis motos da MotoGP com carenagem, quadro, motor, escapamento, para-brisa e pinturas do MotoGP 4 | `67dbe53613467e9696ee0e14a79cbae4a7f404fc` |
+| `patches/motos-motogp4.xdelta` | Só as motos do MotoGP 4 | `67dbe53613467e9696ee0e14a79cbae4a7f404fc` |
 
 ### Motos do MotoGP 4 no MotoGP 08
 
@@ -152,6 +191,55 @@ executável do jogo, onde fica o índice.
 ```sh
 python3 tools/gp4dat.py list    extracted/mgp4/SLUS_211.59 extracted/mgp4/MOTOGP.DAT
 python3 tools/gp4dat.py extract extracted/mgp4/SLUS_211.59 extracted/mgp4/MOTOGP.DAT extracted/mgp4_x 'CourseJerez*'
+```
+
+### `tools/tracks4to08.py`
+
+Converte uma pista do MotoGP 4 para o `.MIX` da mesma pista no MotoGP 08
+([como funciona](docs/formats/pistas.md)). Precisa de `numpy`, `scipy` e
+`Pillow`.
+
+```sh
+python3 tools/tracks4to08.py build   extracted/mgp08/TRACKS/JEREZ.MIX extracted/mgp4_x build/tracks
+python3 tools/tracks4to08.py preview build/tracks/JEREZ.MIX build/jerez.png   # seis vistas do piloto
+```
+
+### `tools/data08.py` e `tools/bml.py`
+
+`data08.py` aplica os mods de jogabilidade (IA e câmera de TV) no `DATA.MIX`.
+`bml.py` lê e edita os `.BML` do jogo ([formato](docs/formats/bml.md)).
+
+```sh
+python3 tools/data08.py extracted/mgp08/DATA.MIX build
+python3 tools/bml.py dump extracted/mgp08_x/DATA/AIPARAMS.BML
+```
+
+### `tools/isopatch.py`
+
+Gera e aplica o patch da pasta `patcher/`: o que é igual à ISO original é
+copiado dela, e só os dados novos ficam no patch, compactados. A página
+`patcher/index.html` faz a mesma montagem no navegador, sem carregar a ISO
+inteira na memória.
+
+```sh
+python3 tools/isopatch.py make  "MotoGP 08 (USA).iso" patcher BIKES.MIX=build/BIKES.MIX DATA.MIX=build/DATA.MIX TRACKS/JEREZ.MIX=build/tracks/JEREZ.MIX ...
+python3 tools/isopatch.py apply "MotoGP 08 (USA).iso" patcher saida.iso
+```
+
+### Refazer o patch completo
+
+```sh
+pip install numpy scipy pillow
+python3 tools/ps2iso.py extract "MotoGP 08 (USA).iso" extracted/mgp08
+python3 tools/ps2iso.py extract "MotoGP 4 (USA).iso" extracted/mgp4 'SLUS_211.59' MOTOGP.DAT
+python3 tools/gp4dat.py extract extracted/mgp4/SLUS_211.59 extracted/mgp4/MOTOGP.DAT extracted/mgp4_x
+python3 tools/bikes4to08.py build extracted/mgp08/BIKES.MIX extracted/mgp4_x build
+python3 tools/data08.py extracted/mgp08/DATA.MIX build
+for t in BRNO CATALUN DOHA DONNING ESTORIL JEREZ MUGELLO PHILLIPI SACHSEN SEPANG VALENCIA; do
+  python3 tools/tracks4to08.py build extracted/mgp08/TRACKS/$t.MIX extracted/mgp4_x build/tracks
+done
+python3 tools/isopatch.py make "MotoGP 08 (USA).iso" patcher BIKES.MIX=build/BIKES.MIX DATA.MIX=build/DATA.MIX \
+  $(for t in BRNO CATALUN DOHA DONNING ESTORIL JEREZ MUGELLO PHILLIPI SACHSEN SEPANG VALENCIA; do echo TRACKS/$t.MIX=build/tracks/$t.MIX; done)
 ```
 
 ## Regras do repositório
