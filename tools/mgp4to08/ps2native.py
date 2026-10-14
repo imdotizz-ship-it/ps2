@@ -263,7 +263,7 @@ def nativize_slf(d, templates=None):
                 ml = ng.first(8)
                 ml.children = [ml.children[0]] + [native_material(m, templates, name.split('@')[0]) for m in ml.find(7)]
             at.children[at.children.index(g)] = ng
-    return rebuild_slf(d, objs)
+    return texture_effects(rebuild_slf(d, objs))
 
 
 def check(prog, pos, nrm, expect=None):
@@ -297,3 +297,42 @@ def check(prog, pos, nrm, expect=None):
         want = Counter(frozenset(key(pos[i]) for i in t) for t in expect if len({key(pos[i]) for i in t}) == 3)
         missing = sum((want - drawn).values())
     return sum(drawn.values()), back, missing
+
+
+def texture_effects(slf):
+    """bike scenes give each texture its own Selene effect slot (material extension 0xfffe), shared
+    by every material using that texture; materials cloned from a template keep the template's slot
+    whatever their texture. Give every other texture of a shared slot a new slot (Effect_N entries
+    added in free directory places)."""
+    from .slf import dirents, add_effects
+    from .build08 import Obj, rebuild_slf
+    _, es = dirents(slf)
+    neff = sum(1 for x in es if x[3] == 0x106)
+    objs, mats = {}, []
+    for i, x in enumerate(es):
+        if x[3] not in (0x303, 0x403):
+            continue
+        o = Obj(slf, x); objs[i] = o
+        for at in o.atomics():
+            for m in at.first(0xF).first(8).find(7):
+                ext, t = m.first(3), m.first(6)
+                if ext is None or ext.first(0xfffe) is None or t is None:
+                    continue
+                name = t.find(2)[0].data.split(b'\0')[0].upper()
+                mats.append((struct.unpack('<i', ext.first(0xfffe).data)[0], name, ext.first(0xfffe)))
+    owner = {}
+    for eff, name, _ in mats:                       # the slot belongs to its first non-converted texture
+        if eff >= 0 and not name.startswith(b'M4'):
+            owner.setdefault(eff, name)
+    new = {}
+    for eff, name, c in mats:
+        if eff < 0 or owner.get(eff, name) == name:
+            owner.setdefault(eff, name)
+            continue
+        if name not in new:
+            new[name] = neff + len(new)
+        c.data = struct.pack('<i', new[name])
+    if not new:
+        return slf
+    out, _ = add_effects(rebuild_slf(slf, objs), len(new))
+    return out
