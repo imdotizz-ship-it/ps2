@@ -12,7 +12,7 @@ python3 $T/ps2iso.py extract "$ISO08" $W/mgp08 BIKES.MIX DATA.MIX 'TRACKS/*.MIX'
 python3 $T/ps2iso.py extract "$ISO4" $W/mgp4 SLUS_211.59 MOTOGP.DAT
 python3 $T/gp4dat.py extract $W/mgp4/SLUS_211.59 $W/mgp4/MOTOGP.DAT $W/mgp4_x
 python3 $T/bikes4to08.py build $W/mgp08/BIKES.MIX $W/mgp4_x $W/bikes
-python3 $T/safetycar.py $W/bikes/BIKES.MIX $W/mgp4_x $W/safetycar
+python3 $T/safetycar.py $W/bikes/BIKES.MIX $W/mgp4_x $W/safetycar --template $W/mgp08/BIKES.MIX
 for t in $TRACKS; do python3 $T/tracks4to08.py build $W/mgp08/TRACKS/$t.MIX $W/mgp4_x $W/tracks; done
 for f in $FOVS; do
   python3 $T/data08.py $W/mgp08/DATA.MIX $W/data/fov$f --fov $f

@@ -13,7 +13,7 @@ from PIL import Image
 from .build08 import Obj, build_geometry, empty_geometry, make_material, rebuild_slf
 from .mgp4obj import packets
 from .mgp4mesh import mesh, strip_tris
-from .ps2native import nativize_slf
+from .ps2native import nativize_slf, template_materials
 from .ps2tex import encode_into, rename
 from .rw import read, write
 from .slf import dirents
@@ -124,7 +124,9 @@ def build(bikes_dir, template, car_path, common_path, new_slot):
             continue
         for at in o.atomics():
             g = at.first(0xF); at.children[at.children.index(g)] = empty_geometry(g)
-    slf = nativize_slf(rebuild_slf(d, objs))     # BIKE07 has no .SLI: the geometry must be native
+    # BIKE07 has no .SLI: the geometry and materials must be native (templates: the template's .SLI)
+    with open(base + ".SLI", "rb") as f:
+        slf = nativize_slf(rebuild_slf(d, objs), template_materials(d, f.read()))
     slf = slf.replace(template.encode(), new_slot.encode()).replace(
         template.capitalize().encode(), new_slot.capitalize().encode())
     # textures: the 08 square 8-bit rasters as templates

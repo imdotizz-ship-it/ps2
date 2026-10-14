@@ -38,7 +38,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import mix  # noqa: E402
-from mgp4to08.ps2native import nativize_slf  # noqa: E402
+from mgp4to08.ps2native import nativize_slf, template_materials  # noqa: E402
 
 DEFAULT_MAP = {
     "BIKE01": "duc_65",
@@ -82,7 +82,11 @@ def cmd_build(args):
             if not os.path.exists(bike_path):
                 sys.exit(f"error: {bike_path} not found")
             slf, txd, txs, stats = convert(os.path.join(tmp, "BIKES"), slot, bike_path, common)
-            slf = nativize_slf(slf)          # the game hangs instancing a bike's plain geometry itself
+            # the game hangs instancing a bike's plain geometry itself: ship native geometry and the
+            # native form of the materials, copied from the slot's own .SLI
+            base = os.path.join(tmp, "BIKES", slot, slot)
+            with open(base + ".SLF", "rb") as f, open(base + ".SLI", "rb") as g:
+                slf = nativize_slf(slf, template_materials(f.read(), g.read()))
             files = {
                 f"BIKES\\{slot}\\{slot}.SLF": slf,
                 f"BIKES\\{slot}\\{slot}.TXS": txs,

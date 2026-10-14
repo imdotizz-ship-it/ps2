@@ -7,7 +7,10 @@ Experimental: the car drives with the physics of a MotoGP bike (it leans in the
 corners), its wheels do not turn, and the 08 rider sits inside it.
 
 Usage:
-  safetycar.py BIKES.MIX MGP4_DIR OUT_DIR    BIKES.MIX: the original or the one from bikes4to08.py
+  safetycar.py BIKES.MIX MGP4_DIR OUT_DIR [--template ORIGINAL_BIKES.MIX]
+      BIKES.MIX: the original or the one from bikes4to08.py (BIKE07 is added to it)
+      --template: the disc's original BIKES.MIX, whose BIKE04 is the model the car is built on
+                  (needed when BIKES.MIX is a converted one: its BIKE04 is no longer the original)
 """
 import argparse
 import os
@@ -22,16 +25,20 @@ from mgp4to08 import car  # noqa: E402
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("mix"); ap.add_argument("mgp4"); ap.add_argument("out")
+    ap.add_argument("--template", help="original BIKES.MIX (default: BIKES.MIX itself)")
     a = ap.parse_args()
     data, entries = mix.read_mix(a.mix)
+    tdata, tentries = mix.read_mix(a.template) if a.template else (data, entries)
     with tempfile.TemporaryDirectory() as tmp:     # the template bike, unpacked
         files = {}
-        for e in entries:
+        for e in tentries:
             n = e.name.upper()
+            if n.endswith(".SLX"):
+                n = n[:-4] + ".SLI"                   # hidden by bikes4to08.py: still the original model
             if n.startswith("BIKES\\BIKE04\\") and e.flag == 0:
                 p = os.path.join(tmp, *n.split("\\"))
                 os.makedirs(os.path.dirname(p), exist_ok=True)
-                open(p, "wb").write(data[e.offset:e.offset + e.stored_size])
+                open(p, "wb").write(tdata[e.offset:e.offset + e.stored_size])
         slf, txd, txs, stats = car.build(os.path.join(tmp, "BIKES"), "BIKE04",
                                          os.path.join(a.mgp4, "bike_extra_p03.bin"),
                                          os.path.join(a.mgp4, "CourseCommon.bin"), "BIKE07")

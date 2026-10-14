@@ -186,7 +186,8 @@ def to_native(geom):
            Chunk(0x510, struct.pack('<3I', 1, len(nd), 0x1c020037) + bytes(nd))]
     old = geom.first(3)
     ext += [c for c in (old.children if old else []) if c.type not in (0x50e, 0x510, 0x134)]
-    ext.append(Chunk(0x134, struct.pack('<I', 0)))
+    # ADC plugin: its payload is itself a chunk (id 0x134, 4 bytes, version) holding 0
+    ext.append(Chunk(0x134, struct.pack('<3I', 0x134, 4, 0x1c020037) + struct.pack('<I', 0)))
     # the bike renderer takes positions, uv and normals (lit, no vertex colours)
     flags = (flags & ~0x08) | 0x01 | 0x20 | NATIVE
     st = struct.pack('<4I', flags, nt, nv, 1) + sphere + struct.pack('<2I', 0, 0)
@@ -203,8 +204,7 @@ def template_materials(slf, sli):
         t, sz, v = struct.unpack_from('<3I', sli, i)
         if t == 0xF and v == 0x1c020037 and struct.unpack_from('<I', sli, i + 12)[0] == 1:
             fl, nt, nv, nm = struct.unpack_from('<4I', sli, i + 24)
-            if fl & NATIVE:
-                natives.setdefault((nv, nt), []).append(read(sli, i, i + 12 + sz)[0])
+            natives.setdefault((nv, nt), []).append(read(sli, i, i + 12 + sz)[0])
     out = {}
     _, es = dirents(slf)
     for e in es:
@@ -229,12 +229,12 @@ def native_material(plain, templates, obj):
     material of the same object and effect, with the texture name and colour of `plain`"""
     import copy
     same = templates.get(obj, [])
-    every = [m for ms in templates.values() for m in ms if m.first(6) is not None]
+    textured = plain.first(6) is not None
+    every = [m for ms in templates.values() for m in ms if (m.first(6) is not None) == textured]
+    same = [m for m in same if (m.first(6) is not None) == textured]
     eff = _effect(plain)
-    pick = (next((m for m in same if _effect(m) == eff and m.first(6) is not None), None)
-            or next((m for m in same if m.first(6) is not None), None)
-            or next((m for m in every if _effect(m) == eff), None)
-            or every[0])
+    pick = (next((m for m in same if _effect(m) == eff), None) or (same[0] if same else None)
+            or next((m for m in every if _effect(m) == eff), None) or every[0])
     m = copy.deepcopy(pick)
     st = bytearray(m.first(1).data); st[4:8] = plain.first(1).data[4:8]; m.first(1).data = bytes(st)
     tp, tm = plain.first(6), m.first(6)
@@ -257,12 +257,12 @@ def nativize_slf(d, templates=None):
     for name, o in objs.items():
         for at in o.atomics():
             g = at.first(0xF)
-            if struct.unpack_from('<I', g.first(1).data)[0] & 0x04:    # drawn (textured): not the collision shape
-                ng = to_native(g)
-                if templates:
-                    ml = ng.first(8)
-                    ml.children = [ml.children[0]] + [native_material(m, templates, name.split('@')[0]) for m in ml.find(7)]
-                at.children[at.children.index(g)] = ng
+            # drawn (textured) geometry goes native; the collision shape stays plain (the physics reads it)
+            ng = to_native(g) if struct.unpack_from('<I', g.first(1).data)[0] & 0x04 else g
+            if templates:
+                ml = ng.first(8)
+                ml.children = [ml.children[0]] + [native_material(m, templates, name.split('@')[0]) for m in ml.find(7)]
+            at.children[at.children.index(g)] = ng
     return rebuild_slf(d, objs)
 
 
