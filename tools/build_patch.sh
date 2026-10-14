@@ -27,6 +27,7 @@ python3 $T/isopatch.py make "$ISO08" $T/../patcher BIKES.MIX=$W/bikes/BIKES.MIX 
   --note "Motos do MotoGP 4 nas seis motos da MotoGP" \
   --note "Visual do MotoGP 4 em 11 pistas: Brno, Catalunya, Doha, Donington, Estoril, Jerez, Mugello, Phillip Island, Sachsenring, Sepang e Valência" \
   --note "Bots com o dobro de chance de cair e menos cuidado entre si" \
+  --note "Todos os pilotos da IA com o ritmo do mais rápido da categoria e todas as motos com o torque da mais forte: o grid inteiro briga pela vitória, ataca de mais longe e defende sem tirar o pé" \
   --note "Toques derrubam mais fácil e empurram mais forte (estilo takedown); rivalidades crescem mais rápido a cada batida" \
   --note "Câmera de TV no botão de trocar câmera, tremor da câmera em alta velocidade e efeito de velocidade mais cedo" \
   --note "Câmera Orbit do replay quase livre (gira de baixo até em cima da moto)" \

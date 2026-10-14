@@ -2,7 +2,13 @@
 r"""Gameplay data mods for MotoGP 08 (PS2), all in DATA.MIX (.BML files, see bml.py).
 
   DATA\DB_PILOTS*.BML   every CPU rider has twice the chance of falling (on track, off track,
-                        and of a fall being a highside), in all three classes
+                        and of a fall being a highside), in all three classes; and every CPU
+                        rider gets the pace of the fastest rider of the class (how early he
+                        opens the throttle, qualifying time ratios), per difficulty, dry and
+                        wet, so the whole grid fights for the win
+  DATA\BIKES\*\*.BML   every team's bike of a class gets the engine torque of the strongest
+                        bike of that class (MotoGP 94, 250cc 58, 125cc 31), the rest of each
+                        bike (gearing, grip, handling) is kept
   DATA\AIPARAMS.BML     the CPU riders keep half the distance from each other: avoidance
                         distance, collision boxes and braking distance are halved, overtakes
                         pass closer and defending riders steer harder (the values that concern
@@ -41,6 +47,9 @@ AI_CHANGES = {
     "Brake/CollDistance_Front": "2.7",     # 5.5
     "Overtake/Overt_Lateral_Offs": "3",    # 5
     "Defense/Def_Steer_Mult": "0.30",      # 0.15
+    "Defense/Defense_Distance": "15",      # 10
+    "Defense/Def_Speed_Mult": "1.00",      # 0.95: defending does not cost speed
+    "Overtake/Overtake_Distance": "15",    # 10: attacks start from further back
 }
 
 DAMAGE = {                                  # GameConfig/Damage (and its per-mode copies)
@@ -82,6 +91,54 @@ def pilots(d):
             if c.kind == 1:
                 walk(c)
     walk(root)
+    return bml.save(root)
+
+
+PACE = ("SplineThrottle_MultTreshold", "MaxQualTimeRatio", "MinQualTimeRatio")   # lower is faster
+
+
+def competitive(d):
+    """every rider gets, per AI block (AI / AI_Wet and difficulty), the lowest value of each PACE field"""
+    root = bml.load(d)
+    blocks = {}
+    for p in (c for c in root.children if c.kind == 1):
+        for a in (c for c in p.children if c.kind == 1 and c.name in ("AI", "AI_Wet")):
+            blocks.setdefault((a.name, tuple((x[0], x[1]) for x in a.attrs)), []).append(a)
+    for nodes in blocks.values():
+        for k in PACE:
+            vals = [bml.get_text(a, k) for a in nodes if bml.get_text(a, k) is not None]
+            if vals:
+                best = min(vals, key=float)
+                for a in nodes:
+                    if bml.get_text(a, k) is not None:
+                        bml.set_text(a, k, best)
+    return bml.save(root)
+
+
+def team_physics(entries, data):
+    """{DATA\\BIKES\\...\\X.BML: torque} for the bikes the teams use: the strongest of each class"""
+    used = {}
+    for e in entries:
+        n = e.name.upper()
+        if n.startswith("DATA\\DB_TEAMS") and n.endswith(".BML"):
+            root = bml.load(data[e.offset:e.offset + e.stored_size])
+            for t in (c for c in root.children if c.kind == 1):
+                for ph in bml.elements(t, "Physics"):
+                    used.setdefault(n, set()).add(bml.get_text(ph, "Name").upper())
+    out = {}
+    for names in used.values():
+        files = [e for e in entries if e.name.upper().startswith("DATA\\BIKES\\")
+                 and e.name.upper().rsplit("\\", 1)[-1][:-4] in names]
+        tq = {e.name: bml.get_text(bml.elements(bml.load(data[e.offset:e.offset + e.stored_size]), "Engine")[0],
+                                   "fMaxTorque") for e in files}
+        best = max(tq.values(), key=float)
+        out.update({k: best for k in tq})
+    return out
+
+
+def torque(d, value):
+    root = bml.load(d)
+    bml.set_text(bml.elements(root, "Engine")[0], "fMaxTorque", value)
     return bml.save(root)
 
 
@@ -169,12 +226,15 @@ def add_pilot(d):
 def build(mix_path, fov=FOV_DEFAULT, safety_car=False):
     data, entries = mix.read_mix(mix_path)
     jobs = {"DATA\\AIPARAMS.BML": ai_params, "DATA\\DB_GAMECONFIG.BML": gameconfig,
-            "DATA\\CAMERAS.BML": lambda d: cameras(d, fov), "DATA\\DB_PILOTS.BML": pilots,
-            "DATA\\DB_PILOTS_125CC.BML": pilots, "DATA\\DB_PILOTS_250CC.BML": pilots}
+            "DATA\\CAMERAS.BML": lambda d: cameras(d, fov)}
+    for cls in ("", "_125CC", "_250CC"):
+        jobs["DATA\\DB_PILOTS%s.BML" % cls] = lambda d: competitive(pilots(d))
+    for name, tq in team_physics(entries, data).items():
+        jobs[name.upper()] = lambda d, tq=tq: torque(d, tq)
     if safety_car:
         jobs["DATA\\DB_VEHICLES.BML"] = add_vehicle
         jobs["DATA\\DB_TEAMS.BML"] = add_team
-        jobs["DATA\\DB_PILOTS.BML"] = lambda d: add_pilot(pilots(d))
+        jobs["DATA\\DB_PILOTS.BML"] = lambda d: add_pilot(competitive(pilots(d)))
     payloads = []
     for e in entries:
         p = data[e.offset:e.offset + e.stored_size]

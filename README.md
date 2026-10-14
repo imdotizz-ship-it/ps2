@@ -29,6 +29,7 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | Motos do MotoGP 4 | As seis motos da MotoGP com carenagem, quadro, motor, escapamento, para-brisa e pinturas do MotoGP 4 ([detalhes](#motos-do-motogp-4-no-motogp-08)) |
 | Pistas do MotoGP 4 | Brno, Catalunya, Doha, Donington, Estoril, Jerez, Mugello, Phillip Island, Sachsenring, Sepang e Valência com o visual do MotoGP 4 ([detalhes](docs/formats/pistas.md)) |
 | Bots que caem mais | Cada piloto da CPU tem o dobro da chance de cair (na pista, fora dela e de a queda ser um highside), nas três categorias, e guarda metade da distância dos outros |
+| Grid competitivo | Todos os pilotos da CPU com o ritmo do mais rápido da categoria (acelerador, tempos de classificação), em todas as dificuldades, no seco e na chuva; todas as motos de cada categoria com o torque da mais forte (MotoGP 94, 250cc 58, 125cc 31), mantendo câmbio, aderência e manejo de cada uma; ataques começam de mais longe (15 m) e defender não tira velocidade. As chances de queda continuam individuais (e dobradas) |
 | Toques estilo takedown | Um toque entre motos derruba com menos diferença de velocidade (92 → 55) e empurra 2,5 vezes mais forte; bater numa moto caída derruba mais cedo; as rivalidades entre pilotos pioram mais rápido a cada batida |
 | Câmeras | Câmera de TV (alta, atrás da moto) no botão de trocar câmera; tremor da câmera acima de 180 km/h; efeito de velocidade da câmera começando em 100 km/h (era 148) |
 | FOV ajustável | Controle deslizante na página de instalação: 60° a 110° nas câmeras da corrida (70° é o original) |
@@ -50,6 +51,15 @@ travar ao carregar, dá para gerar o patch com menos triângulos (`--budget` em
 `tools/tracks4to08.py`).
 
 ![Largada de cada pista convertida](docs/pistas-motogp4.jpg)
+
+A imagem acima vem de um renderizador simples feito para conferir o encaixe,
+não do jogo: sem iluminação, sem filtragem de textura (por isso o asfalto
+fica serrilhado), céu chapado e câmera presa à linha da IA. No jogo as pistas
+usam a iluminação, o céu e a filtragem do 08. Defeitos reais que a imagem
+também mostra: o MotoGP 4 e o 08 não têm traçados idênticos, então há trechos
+esticados pela deformação, chão preenchido com triângulos da colisão do 08
+onde o MotoGP 4 não tinha nada, e peças pequenas cortadas pelo limite de
+triângulos.
 
 ### Safety Car (opcional)
 
@@ -91,7 +101,10 @@ github.com.
 - **Câmera livre com L1+R1 durante a corrida** (câmera de desenvolvedor). O
   mais perto disso hoje é a câmera Orbit do Replay, que ficou mais livre.
 - **FOV ajustável dentro do jogo.** O FOV é escolhido na página de
-  instalação.
+  instalação. As opções dos menus não são uma lista que o jogo lê dos
+  dados: cada uma (`KmUnit`, `TrackMap`...) tem nome fixo no executável, uma
+  tela pronta (`.mwf`) e código que aplica o valor. Uma opção nova precisa
+  dos três, e o código das câmeras precisaria ler o valor novo.
 - **Motion blur forte.** O PS2 não tem desfoque de movimento nas câmeras de
   corrida; o que existe é o efeito de velocidade da câmera, que agora começa
   mais cedo, e o tremor em alta velocidade.
@@ -112,7 +125,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`5bd3e6f7f1d717908b4fb761902b4b6162ae7cb8` com FOV 70 e sem Safety Car; as
+(`848c0fa797caf14ee57f4fb1d22a365179651870` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou
@@ -248,7 +261,7 @@ python3 tools/tracks4to08.py preview build/tracks/JEREZ.MIX build/jerez.png   # 
 
 ### `tools/data08.py` e `tools/bml.py`
 
-`data08.py` aplica os mods de jogabilidade (IA e câmera de TV) no `DATA.MIX`.
+`data08.py` aplica os mods de jogabilidade (IA, grid competitivo, física das motos e câmeras) no `DATA.MIX`.
 `bml.py` lê e edita os `.BML` do jogo ([formato](docs/formats/bml.md)).
 
 ```sh
