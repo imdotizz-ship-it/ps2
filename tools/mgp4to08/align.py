@@ -48,13 +48,14 @@ def _rot(deg):
     return np.array([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]])
 
 
-def coarse(m4_xz, line_xz, step=2.0, res=2.0, half=2048):
-    """best rotation (deg) / translation mapping 08 points onto MotoGP 4 points: q = R (p - c) + t"""
+def coarse(m4_xz, line_xz, step=2.0, res=2.0, half=2048, top=1):
+    """best rotation (deg) / translation mapping 08 points onto MotoGP 4 points: q = R (p - c) + t;
+    with top > 1, a list of the best (ang, t, c, score) at least 20 degrees apart"""
     N = int(2 * half / res)
     m = np.median(m4_xz, 0)                      # the field is centred on the MotoGP 4 track
     D = distance_field(m4_xz - m, res, half)
     F = np.fft.rfft2(D)
-    c = line_xz.mean(0); best = None
+    c = line_xz.mean(0); best = None; cands = []
     for ang in np.arange(0, 360, step):
         Q = (line_xz - c) @ _rot(ang).T
         img = np.zeros((N, N)); q = np.round(Q / res).astype(int)
@@ -63,18 +64,27 @@ def coarse(m4_xz, line_xz, step=2.0, res=2.0, half=2048):
         k = np.argmin(corr); tz, tx = np.unravel_index(k, corr.shape)
         # a point q lands on field cell q + index, i.e. MotoGP 4 coordinate (q + index) * res - half + m
         cand = (corr.flat[k] * res, ang, np.array([tx * res - half, tz * res - half], float) + m)
+        cands.append(cand)
         if best is None or cand[0] < best[0]:
             best = cand
+    if top > 1:
+        out = []
+        for sc, ang, t in sorted(cands, key=lambda x: x[0]):
+            if all(abs((ang - o[0] + 180) % 360 - 180) >= 20 for o in out):
+                out.append((ang, t, c, sc))
+            if len(out) == top:
+                break
+        return out
     score, ang, t = best
     return ang, t, c, score
 
 
-def refine(mask_fn, samples, ang, t, c, span_deg=1.0, span_m=4.0):
+def refine(mask_fn, samples, ang, t, c, span_deg=1.0, span_m=4.0, s=1.0):
     """maximise the share of 08 sample points (N,2) falling inside the MotoGP 4 mask"""
     best = (-1, ang, t)
     for da in np.linspace(-span_deg, span_deg, 21):
         R = _rot(ang + da)
-        base = (samples - c) @ R.T
+        base = s * (samples - c) @ R.T
         for dx in np.arange(-span_m, span_m + 1e-6, 0.5):
             for dz in np.arange(-span_m, span_m + 1e-6, 0.5):
                 tt = t + (dx, dz)
@@ -84,39 +94,128 @@ def refine(mask_fn, samples, ang, t, c, span_deg=1.0, span_m=4.0):
     return best
 
 
-class Fit:
-    """MotoGP 4 (mm) -> MotoGP 08 (m) transform with a vertical correction field"""
+def icp(src, dst, ang, t, c, s=1.0, iters=40, start=15.0, end=2.0, smin=0.95, smax=1.05):
+    """similarity fit q = s R (p - c) + t of 08 points src (N,2) onto MotoGP 4 points dst (M,2),
+    both in metres (iterative closest points, Umeyama step, shrinking outlier threshold; the
+    scale stays within smin..smax: both games model real circuits);
+    returns ang, t, s and the share of 08 points within `end` metres at the end"""
+    from scipy.spatial import cKDTree
+    tree = cKDTree(dst)
+    for k in range(iters):
+        thr = start * (end / start) ** (k / (iters - 1))
+        Q = s * (src - c) @ _rot(ang).T + t
+        d, j = tree.query(Q)
+        m = d < thr
+        if m.sum() < 50:
+            break
+        P = src[m] - c; D = dst[j[m]]
+        mp = P.mean(0); md = D.mean(0); P0 = P - mp; D0 = D - md
+        U, S, Vt = np.linalg.svd(D0.T @ P0 / len(P))
+        E = np.diag([1.0, np.sign(np.linalg.det(U) * np.linalg.det(Vt))])
+        R = U @ E @ Vt
+        s = float(np.clip(np.trace(np.diag(S) @ E) / (P0 ** 2).sum(1).mean(), smin, smax))
+        t = md - s * R @ mp
+        ang = float(np.degrees(np.arctan2(R[1, 0], R[0, 0])))
+    d, _ = tree.query(s * (src - c) @ _rot(ang).T + t)
+    return ang, t, s, float((d < end).mean())
 
-    def __init__(self, ang, t, c, field=None, origin=None, cell=8.0):
-        self.R = _rot(ang); self.t = np.asarray(t, float); self.c = np.asarray(c, float)
+
+def area_samples(tris, per_m2=0.5, rng=None):
+    """random points (N,2) over the x,z footprint of triangles (K,3,2), about `per_m2` per square metre"""
+    rng = rng or np.random.default_rng(0)
+    a = np.abs(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])) / 2 if tris.shape[-1] == 3 else \
+        np.abs((tris[:, 1, 0] - tris[:, 0, 0]) * (tris[:, 2, 1] - tris[:, 0, 1])
+               - (tris[:, 2, 0] - tris[:, 0, 0]) * (tris[:, 1, 1] - tris[:, 0, 1])) / 2
+    n = rng.poisson(a * per_m2)
+    T = np.repeat(tris, n, 0)
+    w = rng.random((len(T), 2)); f = w.sum(1) > 1; w[f] = 1 - w[f]
+    return T[:, 0] + w[:, :1] * (T[:, 1] - T[:, 0]) + w[:, 1:] * (T[:, 2] - T[:, 0])
+
+
+def _bilinear(F, origin, cell, xz):
+    g = (xz - origin) / cell
+    n = F.shape[0]
+    gx = np.clip(g[:, 0], 0, n - 1.001); gz = np.clip(g[:, 1], 0, n - 1.001)
+    x0 = gx.astype(int); z0 = gz.astype(int); fx = gx - x0; fz = gz - z0
+    if F.ndim == 3:
+        fx = fx[:, None]; fz = fz[:, None]
+    return (F[z0, x0] * (1 - fx) * (1 - fz) + F[z0, x0 + 1] * fx * (1 - fz)
+            + F[z0 + 1, x0] * (1 - fx) * fz + F[z0 + 1, x0 + 1] * fx * fz)
+
+
+def _smooth_fill(S, C, iters, default=0.0):
+    """average of the samples per cell, filled and smoothed outwards (measured cells kept closer)"""
+    known = C > 0
+    F = np.where(known[..., None] if S.ndim == 3 else known, S / np.maximum(C, 1)[..., None] if S.ndim == 3
+                 else S / np.maximum(C, 1), default)
+    K = known[..., None] if S.ndim == 3 else known
+    for _ in range(iters):
+        A = F.copy()
+        A[1:-1, 1:-1] = (F[:-2, 1:-1] + F[2:, 1:-1] + F[1:-1, :-2] + F[1:-1, 2:] + F[1:-1, 1:-1]) / 5
+        F = np.where(K, 0.5 * F + 0.5 * A, A)
+    return F
+
+
+class Fit:
+    """MotoGP 4 (mm) -> MotoGP 08 (m) transform: rotation, scale and translation, then a smooth
+    horizontal warp (MotoGP 4 circuits are not exact replicas) and a vertical correction field"""
+
+    def __init__(self, ang, t, c, field=None, origin=None, cell=8.0, s=1.0, warp=None):
+        self.R = _rot(ang); self.t = np.asarray(t, float); self.c = np.asarray(c, float); self.s = s
         self.field = field; self.origin = origin; self.cell = cell
+        self.warp = warp                     # (field (n,n,2), origin, cell) over the rigid result
+
+    def rigid(self, p4):
+        return (np.asarray(p4, float) / 1000.0 - self.t) @ self.R / self.s + self.c
 
     def xz(self, p4):
         """MotoGP 4 x,z in millimetres -> MotoGP 08 x,z in metres"""
-        return (np.asarray(p4, float) / 1000.0 - self.t) @ self.R + self.c
+        r = self.rigid(p4)
+        if self.warp is not None:
+            r = r + _bilinear(*self.warp, r)
+        return r
 
     def dy(self, xz08):
         if self.field is None:
             return np.zeros(len(xz08))
-        g = (xz08 - self.origin) / self.cell
-        n = self.field.shape[0]
-        gx = np.clip(g[:, 0], 0, n - 1.001); gz = np.clip(g[:, 1], 0, n - 1.001)
-        x0 = gx.astype(int); z0 = gz.astype(int); fx = gx - x0; fz = gz - z0
-        F = self.field
-        return (F[z0, x0] * (1 - fx) * (1 - fz) + F[z0, x0 + 1] * fx * (1 - fz)
-                + F[z0 + 1, x0] * (1 - fx) * fz + F[z0 + 1, x0 + 1] * fx * fz)
+        return _bilinear(self.field, self.origin, self.cell, xz08)
 
     def point(self, p4):
         p4 = np.atleast_2d(np.asarray(p4, float))
         xz = self.xz(p4[:, [0, 2]])
-        y = p4[:, 1] / 1000.0 + self.dy(xz)
+        y = p4[:, 1] / 1000.0 / self.s + self.dy(xz)
         return np.stack([xz[:, 0], y, xz[:, 1]], 1)
 
 
-def height_grid(col_tris, res=1.0, half=1400):
-    """max collision height per cell (NaN where no collision)"""
+def warp_field(fit, road4_mm, tar08, iters=8, start=12.0, end=2.5, cell=16.0, half=1500, log=None):
+    """smooth horizontal displacement that lays the MotoGP 4 road samples (mm) on the 08 tarmac
+    samples (m): matches both ways between the two surfaces, averaged per cell and smoothed"""
+    from scipy.spatial import cKDTree
+    n = int(2 * half / cell); origin = np.array([-half, -half], float)
+    D = np.zeros((n, n, 2))
+    rig = fit.rigid(road4_mm)
+    t08 = cKDTree(tar08)
+    for k in range(iters):
+        thr = start * (end / start) ** (k / max(iters - 1, 1))
+        r = rig + _bilinear(D, origin, cell, rig)
+        d1, j1 = t08.query(r); m1 = d1 < thr
+        d2, j2 = cKDTree(r).query(tar08); m2 = d2 < thr
+        pos = np.concatenate([rig[m1], rig[j2[m2]]])
+        dd = np.concatenate([tar08[j1[m1]] - r[m1], tar08[m2] - r[j2[m2]]])
+        g = ((pos - origin) / cell).astype(int).clip(0, n - 1)
+        S = np.zeros((n, n, 2)); C = np.zeros((n, n))
+        np.add.at(S, (g[:, 1], g[:, 0]), dd); np.add.at(C, (g[:, 1], g[:, 0]), 1)
+        D += 0.8 * _smooth_fill(S, C, 30)
+        if log:
+            log("    warp %d: threshold %.1f m, %d matches, mean move %.2f m" % (k, thr, len(dd), np.linalg.norm(dd, axis=1).mean()))
+    return D, origin, cell
+
+
+def height_grid(col_tris, res=1.0, half=1400, layers=False):
+    """max collision height per cell (NaN where no collision); with `layers`, the (2, n, n) stack
+    of the highest and the lowest collision per cell (bridges: the road under and over)"""
     n = int(2 * half / res)
-    H = np.full((n, n), np.nan)
+    H = np.full((n, n), np.nan); L = np.full((n, n), np.nan)
     for T in col_tris:
         x = (T[:, 0] + half) / res; z = (T[:, 2] + half) / res
         x0, x1 = int(np.floor(x.min())), int(np.ceil(x.max())); z0, z1 = int(np.floor(z.min())), int(np.ceil(z.max()))
@@ -133,10 +232,19 @@ def height_grid(col_tris, res=1.0, half=1400):
         if not m.any():
             continue
         y = l0 * T[0, 1] + l1 * T[1, 1] + l2 * T[2, 1]
-        sub = H[max(z0, 0):min(z1, n - 1) + 1, max(x0, 0):min(x1, n - 1) + 1]
-        cur = np.where(np.isnan(sub), -1e9, sub)
+        win = (slice(max(z0, 0), min(z1, n - 1) + 1), slice(max(x0, 0), min(x1, n - 1) + 1))
+        sub = H[win]; cur = np.where(np.isnan(sub), -1e9, sub)
         sub[m] = np.maximum(cur[m], y[m])
-    return H
+        sub = L[win]; cur = np.where(np.isnan(sub), 1e9, sub)
+        sub[m] = np.minimum(cur[m], y[m])
+    return np.stack([H, L]) if layers else H
+
+
+def ground_height(H2, xz, y):
+    """the collision height (highest or lowest layer of `height_grid(.., layers=True)`) closest
+    to the heights `y` (NaN where no collision)"""
+    hi = sample_grid(H2[0], xz); lo = sample_grid(H2[1], xz)
+    return np.where(np.abs(hi - y) <= np.abs(lo - y), hi, lo)
 
 
 def sample_grid(H, xz, res=1.0, half=1400):
@@ -148,8 +256,12 @@ def sample_grid(H, xz, res=1.0, half=1400):
 
 
 def correction_field(xz08, y08_raw, H, cell=8.0, half=1500, iters=200):
-    """smooth dy(x,z) = collision height - MotoGP 4 height, from vertices lying over the collision"""
-    h = sample_grid(H, xz08)
+    """smooth dy(x,z) = collision height - MotoGP 4 height, from vertices lying over the collision
+    (H from height_grid(.., layers=True): under a bridge, the layer closest to the vertex)"""
+    hi = sample_grid(H[0], xz08); lo = sample_grid(H[1], xz08)
+    single = np.abs(hi - lo) < 0.5
+    med = np.nanmedian((hi - y08_raw)[single]) if single.any() else np.nanmedian(hi - y08_raw)
+    h = ground_height(H, xz08, y08_raw + med)
     ok = ~np.isnan(h)
     d = h[ok] - y08_raw[ok]
     med = np.median(d)
@@ -158,10 +270,4 @@ def correction_field(xz08, y08_raw, H, cell=8.0, half=1500, iters=200):
     S = np.zeros((n, n)); C = np.zeros((n, n))
     g = ((xz08[ok][keep] - origin) / cell).astype(int)
     np.add.at(S, (g[:, 1], g[:, 0]), d[keep]); np.add.at(C, (g[:, 1], g[:, 0]), 1)
-    known = C > 0
-    F = np.where(known, S / np.maximum(C, 1), med)
-    for _ in range(iters):                       # fill and smooth, keeping measured cells
-        A = F.copy()
-        A[1:-1, 1:-1] = (F[:-2, 1:-1] + F[2:, 1:-1] + F[1:-1, :-2] + F[1:-1, 2:] + F[1:-1, 1:-1]) / 5
-        F = np.where(known, 0.5 * F + 0.5 * A, A)
-    return F, origin, cell
+    return _smooth_fill(S, C, iters, med), origin, cell

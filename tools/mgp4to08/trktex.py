@@ -19,7 +19,7 @@ def _groups(d,base_off):
         ids=[tid]; pending=None
         while i<len(words) and words[i] not in (0xfffc,0xfffe,0xffff):
             w=words[i]; i+=1; lo,hi=w&0xff,w>>8
-            if hi&0x80 and hi&0x20 and not hi&0x5f: pending=lo; continue
+            if w&0xf000==0xa000: pending=w&0x0fff; continue      # long jump: 12-bit delta for the next entry
             delta=1 if hi&0x80 else (pending if pending is not None else hi); pending=None
             ids.append(ids[-1]+delta)
         groups.append((off,ids))

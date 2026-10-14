@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MotoGP 08 + MotoGP 4</title>
+<style>
+:root{--bg:#f6f5f2;--fg:#1d1d1f;--muted:#5f5f66;--card:#fff;--line:#dedcd6;--accent:#c8102e;--ok:#1f7a3a;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#141416;--fg:#f1f1f3;--muted:#a3a3ab;--card:#1e1e22;--line:#323238;--accent:#ff4d5e;--ok:#5fd38a;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:1.6rem;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
+.step{font-weight:600;margin:0 0 8px}
+input[type=file]{width:100%;font-size:15px}
+button,.save{display:block;width:100%;padding:14px;border:0;border-radius:12px;background:var(--accent);color:#fff;font-size:17px;font-weight:600;text-align:center;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+progress{width:100%;height:10px;margin-top:12px}
+#status{margin:8px 0 0;min-height:1.5em}
+.ok{color:var(--ok)}.err{color:var(--err)}
+small,.note{color:var(--muted);font-size:14px}
+details{margin-top:8px}
+ul{padding-left:20px;margin:6px 0}
+</style>
+</head>
+<body>
+<main>
+<h1>MotoGP 08 + MotoGP 4</h1>
+<p class="sub">Monta a ISO modificada a partir da sua ISO original, aqui mesmo no aparelho. A ISO não é enviada para lugar nenhum.</p>
+
+<div class="card">
+  <p class="step">1. Escolha a ISO original</p>
+  <input type="file" id="iso" accept=".iso,application/octet-stream">
+  <p class="note">MotoGP 08 (USA), SLUS-21811, 1.631.027.200 bytes.</p>
+</div>
+
+<div class="card">
+  <p class="step">2. Monte a ISO nova</p>
+  <button id="go" disabled>Criar ISO</button>
+  <progress id="bar" max="1" value="0" hidden></progress>
+  <p id="status" role="status"></p>
+</div>
+
+<div class="card" id="saveCard" hidden>
+  <p class="step">3. Salve</p>
+  <a class="save" id="save" download>Salvar ISO</a>
+  <p class="note">No iPhone: toque em Salvar, confirme o download e a ISO vai para a pasta Downloads do app Arquivos. Deixe a tela ligada até terminar.</p>
+</div>
+
+<div class="card">
+  <p class="step">O que muda</p>
+  <ul id="changes"><li>Carregando…</li></ul>
+  <details>
+    <summary class="note">Sem internet aqui? Use as partes do patch já baixadas</summary>
+    <p class="note">Baixe os arquivos <code>part-NN.patch</code> da pasta <code>patcher</code> do repositório e escolha todos aqui.</p>
+    <input type="file" id="parts" multiple>
+  </details>
+</div>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const MIRROR = "https://raw.githubusercontent.com/imdotizz-ship-it/ps2/claude/ps2-game-mods-drastic-3mwmob/patcher/";
+let manifest = null, iso = null, localParts = {};
+
+function say(text, cls) { const s = $("status"); s.textContent = text; s.className = cls || ""; }
+function progress(v) { const b = $("bar"); b.hidden = false; b.value = v; }
+function mib(n) { return (n / 1048576).toFixed(1).replace(".", ",") + " MB"; }
+
+async function sha1(blob) {
+  const buf = await crypto.subtle.digest("SHA-1", await blob.arrayBuffer());
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function fetchFirst(file, onProgress) {
+  const urls = [new URL(file, location.href).href, MIRROR + file];
+  let last;
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { cache: "no-cache" });
+      if (!r.ok) throw new Error(r.status + " " + url);
+      if (!onProgress || !r.body) return await r.blob();
+      const reader = r.body.getReader(), chunks = []; let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); got += value.length; onProgress(got);
+      }
+      return new Blob(chunks);
+    } catch (e) { last = e; }
+  }
+  throw last;
+}
+
+async function loadManifest() {
+  try {
+    manifest = JSON.parse(await (await fetchFirst("manifest.json")).text());
+    $("changes").innerHTML = "";
+    for (const c of manifest.changes || []) {
+      const li = document.createElement("li"); li.textContent = c; $("changes").appendChild(li);
+    }
+  } catch (e) {
+    $("changes").innerHTML = "<li>Não consegui baixar a descrição do patch. Verifique a internet e recarregue a página.</li>";
+  }
+  ready();
+}
+
+function ready() { $("go").disabled = !(manifest && iso); }
+
+$("iso").addEventListener("change", e => {
+  iso = e.target.files[0] || null;
+  if (iso) say(iso.name + " (" + mib(iso.size) + ")");
+  ready();
+});
+$("parts").addEventListener("change", e => {
+  localParts = {};
+  for (const f of e.target.files) localParts[f.name] = f;
+  say(Object.keys(localParts).length + " partes escolhidas");
+});
+
+async function build() {
+  const m = manifest;
+  if (iso.size !== m.source.size) throw new Error("Esta não é a ISO original esperada (tamanho diferente: " + iso.size + " bytes).");
+  say("Conferindo a ISO original…");
+  for (const [off, n, h] of m.source.samples) {
+    if (await sha1(iso.slice(off, off + n)) !== h) throw new Error("Esta não é a ISO original esperada (conteúdo diferente).");
+  }
+  const total = m.parts.reduce((a, p) => a + p.size, 0);
+  let before = 0; const parts = [];
+  for (const p of m.parts) {
+    say("Baixando o patch… " + mib(before) + " de " + mib(total));
+    let blob = localParts[p.file];
+    if (!blob) blob = await fetchFirst(p.file, got => { progress((before + got) / total * 0.7); say("Baixando o patch… " + mib(before + got) + " de " + mib(total)); });
+    if (blob.size !== p.size || await sha1(blob) !== p.sha1) throw new Error("A parte " + p.file + " veio corrompida. Tente de novo.");
+    parts.push(blob); before += p.size; progress(before / total * 0.7);
+  }
+  const chunks = [];
+  for (let i = 0; i < m.chunks.length; i++) {
+    const [pi, off, clen, rlen] = m.chunks[i];
+    const stream = parts[pi].slice(off, off + clen).stream().pipeThrough(new DecompressionStream("gzip"));
+    const b = await new Response(stream).blob();
+    if (b.size !== rlen) throw new Error("Falha ao descompactar o patch.");
+    chunks.push(b);
+    progress(0.7 + 0.3 * (i + 1) / m.chunks.length);
+    if (i % 8 === 0) say("Preparando… " + Math.round((i + 1) / m.chunks.length * 100) + "%");
+  }
+  const pieces = m.ops.map(op => op[0] === "s" ? iso.slice(op[1], op[1] + op[2])
+                                 : op[0] === "z" ? new Blob([new Uint8Array(op[1])]) : chunks[op[1]]);
+  const out = new Blob(pieces, { type: "application/octet-stream" });
+  if (out.size !== m.target.size) throw new Error("Tamanho final inesperado.");
+  return out;
+}
+
+$("go").addEventListener("click", async () => {
+  $("go").disabled = true; $("saveCard").hidden = true;
+  try {
+    const out = await build();
+    const a = $("save");
+    if (a.href) URL.revokeObjectURL(a.href);
+    a.href = URL.createObjectURL(out);
+    a.download = manifest.target.name;
+    a.textContent = "Salvar " + manifest.target.name + " (" + mib(out.size) + ")";
+    $("saveCard").hidden = false;
+    progress(1);
+    say("Pronto. Toque em Salvar.", "ok");
+  } catch (e) {
+    say(e.message || String(e), "err");
+  } finally {
+    $("go").disabled = false;
+  }
+});
+
+if (!("DecompressionStream" in window) || !crypto.subtle) {
+  say("Este navegador é antigo demais. Atualize o iOS (16.4 ou mais novo) ou use outro navegador.", "err");
+} else {
+  loadManifest();
+}
+</script>
+</body>
+</html>

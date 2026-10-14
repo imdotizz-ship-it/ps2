@@ -37,15 +37,64 @@ def _world_local(s):
 
 
 def fit_track(strips, spl_text, col_tris, col_terrain, log=print):
-    """align MotoGP 4 onto the 08 circuit and build the vertical correction"""
+    """align MotoGP 4 onto the 08 circuit and build the vertical correction; returns the
+    transform, the textures laid on the 08 ground, the 08 height grid and the share of the
+    08 tarmac covered by the MotoGP 4 road"""
+    from scipy.spatial import cKDTree
     W = np.array([v[0] for s in strips for v in s["verts"]], float)
     near = (np.abs(W[:, 0]) < 1.0e6) & (np.abs(W[:, 2]) < 1.0e6) & (W[:, 1] < 6.0e4)
     m4 = W[near][:, [0, 2]] / 1000.0
     line = align.spline_points(spl_text)
-    ang, t, c, score = align.coarse(m4, line[:, [0, 2]])
-    log("  coarse fit: %.1f deg, mean distance %.2f m" % (ang, score))
-    # MotoGP 4 textures lying on the 08 tarmac = road surface
-    fit = align.Fit(ang, t, c)
+    starts = align.coarse(m4, line[:, [0, 2]], top=4)
+    log("  coarse fit: " + ", ".join("%.0f deg (%.1f m)" % (a, sc) for a, _, _, sc in starts))
+    # every MotoGP 4 triangle (millimetres) with its texture, and the flat opaque ones
+    T4 = []; tid4 = []; blend4 = []
+    for s in strips:
+        for a_, b_, c_ in track4.triangles(s["verts"]):
+            T4.append((a_[0], b_[0], c_[0])); tid4.append(s["tid"]); blend4.append(s["flags"][:1] == (1,))
+    T4 = np.array(T4, float); tid4 = np.array(tid4); blend4 = np.array(blend4)
+    nrm = np.cross(T4[:, 1] - T4[:, 0], T4[:, 2] - T4[:, 0]); ln = np.linalg.norm(nrm, axis=1)
+    flat = (ln > 0) & (np.abs(nrm[:, 1]) > 0.85 * ln)
+    small = np.linalg.norm(T4 - T4[:, [1, 2, 0]], axis=2).max(1) < 100000     # not the sky dome
+    sel = flat & ~blend4 & small
+    rng = np.random.default_rng(1)
+    samples = align.area_samples(col_tris[col_terrain == "TARMAC"][:, :, [0, 2]], 0.5, rng)
+    t08 = cKDTree(samples)
+    # the MotoGP 4 asphalt: among the textures under the 08 AI line, the one whose surface best
+    # matches the 08 tarmac after a rotation/translation/scale fit (ICP) both ways
+    best = None
+    for ang0, t0, c, _ in starts:          # each starting orientation, its likely asphalt textures
+        under = _under_line(T4[sel] / 1000.0, tid4[sel], ang0, t0, c, line[:, [0, 2]])
+        here = {}
+        for k in sorted(under, key=lambda k: -under[k])[:5]:
+            dst = align.area_samples(T4[sel & (tid4 == k)][:, :, [0, 2]] / 1000.0, 0.5, rng)
+            if len(dst) < 200:
+                continue
+            a2, t2, s2, rec = align.icp(samples, dst, ang0, t0, c)
+            prec = (t08.query((dst - t2) @ align._rot(a2) / s2 + c)[0] < 2).mean()
+            here[k] = (rec, prec)
+            f = 2 * rec * prec / max(rec + prec, 1e-9)
+            if best is None or f > best[0]:
+                best = (f, k, a2, t2, s2, here)
+    f, road_tid, ang, t, sc, scores = best
+    roadlike = [road_tid] + [k for k, (rec, prec) in scores.items() if k != road_tid and prec > 0.6 and rec > 0.1]
+    log("  asphalt texture %d (match %.0f%%), rotation %.2f deg, scale %.4f" % (road_tid, f * 100, ang, sc))
+    fit = align.Fit(ang, t, c, s=sc)
+    # smooth horizontal warp laying the MotoGP 4 asphalt on the 08 tarmac
+    road4 = align.area_samples(T4[sel & np.isin(tid4, roadlike)][:, :, [0, 2]], 0.5e-6, rng)
+    warp = align.warp_field(fit, road4, samples)
+    fit = align.Fit(ang, t, c, s=sc, warp=warp)
+    # coverage: share of the 08 tarmac under the MotoGP 4 asphalt
+    res = 0.5; half = 1500; n = int(2 * half / res)
+    img = Image.new("1", (n, n)); from PIL import ImageDraw; dr = ImageDraw.Draw(img)
+    for P in fit.xz(T4[sel & np.isin(tid4, roadlike)][:, :, [0, 2]].reshape(-1, 2)).reshape(-1, 3, 2):
+        dr.polygon([((x + half) / res, (z + half) / res) for x, z in P], fill=1)
+    mask = np.array(img)
+    ij = ((samples + half) / res).astype(int).clip(0, n - 1)
+    share = mask[ij[:, 1], ij[:, 0]].mean()
+    log("  warped: 08 tarmac covered by MotoGP 4 asphalt %.0f%% (largest move %.1f m)"
+        % (share * 100, np.linalg.norm(warp[0], axis=2).max()))
+    # MotoGP 4 textures lying on the 08 tarmac = road surface; flat ones over the collision = ground
     tar = col_tris[np.isin(col_terrain, ["TARMAC", "CORDOLO", "TARMACPIT"])]
     Ht = align.height_grid(tar, 1.0)
     hits = {}; tot = {}
@@ -54,79 +103,73 @@ def fit_track(strips, spl_text, col_tris, col_terrain, log=print):
         h = align.sample_grid(Ht, fit.xz(P[:, [0, 2]]))
         hits[s["tid"]] = hits.get(s["tid"], 0) + np.count_nonzero(~np.isnan(h))
         tot[s["tid"]] = tot.get(s["tid"], 0) + len(P)
-    road = {k for k in tot if tot[k] > 30 and hits[k] / tot[k] > 0.5 and k not in (4001, 4002)}
+    road = {k for k in tot if tot[k] > 30 and hits[k] / tot[k] > 0.5} | set(roadlike)
     Hall = align.height_grid(col_tris, 1.0)
-    flat = {}; over = {}; cnt = {}
-    for s in strips:
-        for a, b, cc in track4.triangles(s["verts"]):
-            P = np.array([a[0], b[0], cc[0]], float)
-            n = np.cross(P[1] - P[0], P[2] - P[0]); ln = np.linalg.norm(n)
-            if ln == 0:
-                continue
-            k = s["tid"]; cnt[k] = cnt.get(k, 0) + 1
-            flat[k] = flat.get(k, 0) + (abs(n[1]) / ln > 0.85)
-            cxz = fit.xz(P.mean(0)[[0, 2]][None])
-            over[k] = over.get(k, 0) + (not np.isnan(align.sample_grid(Hall, cxz))[0])
-    ground = {k for k in cnt if flat[k] / cnt[k] > 0.8 and over[k] / cnt[k] > 0.6}
-    # refine on the road area: share of 08 tarmac samples covered by MotoGP 4 road triangles
-    res = 0.5; half = 1500; n = int(2 * half / res); m0 = np.median(m4, 0)
-    img = Image.new("1", (n, n)); from PIL import ImageDraw; dr = ImageDraw.Draw(img)
-    for s in strips:
-        if s["tid"] not in road:
-            continue
-        for a, b, cc in track4.triangles(s["verts"]):
-            P = np.array([a[0], b[0], cc[0]])[:, [0, 2]] / 1000.0 - m0
-            dr.polygon([((x + half) / res, (z + half) / res) for x, z in P], fill=1)
-    mask = np.array(img)
-    def inside(q):
-        q = q - m0
-        i = ((q[:, 0] + half) / res).astype(int); j = ((q[:, 1] + half) / res).astype(int)
-        ok = (i >= 0) & (j >= 0) & (i < n) & (j < n)
-        r = np.zeros(len(q), bool); r[ok] = mask[j[ok], i[ok]]
-        return r
-    rng = np.random.default_rng(1)
-    tri = col_tris[col_terrain == "TARMAC"]
-    w = rng.random((len(tri), 2)); w[w.sum(1) > 1] = 1 - w[w.sum(1) > 1]
-    samples = (tri[:, 0] + w[:, :1] * (tri[:, 1] - tri[:, 0]) + w[:, 1:] * (tri[:, 2] - tri[:, 0]))[:, [0, 2]]
-    share, ang, t = align.refine(inside, samples, ang, t, c)
-    log("  fine fit: %.2f deg, 08 tarmac covered by MotoGP 4 road %.0f%%" % (ang, share * 100))
-    fit = align.Fit(ang, t, c)
-    # vertical correction from vertices over the 08 collision
-    H = align.height_grid(col_tris, 1.0)
-    P = W[near]
+    over = ~np.isnan(align.sample_grid(Hall, fit.xz(T4.mean(1)[:, [0, 2]])))
+    ground = {k for k in np.unique(tid4) if flat[tid4 == k].mean() > 0.8 and over[tid4 == k].mean() > 0.6}
+    # vertical correction from the MotoGP 4 road surfaces over the 08 collision (banks and
+    # hills differ between the games; the road is what has to match)
+    H = align.height_grid(col_tris, 1.0, layers=True)
+    P = np.array([v[0] for s in strips if s["tid"] in road for v in s["verts"]], float)
+    if len(P) < 1000:
+        P = W[near]
     xz = fit.xz(P[:, [0, 2]])
-    F, origin, cell = align.correction_field(xz, P[:, 1] / 1000.0, H)
-    fit = align.Fit(ang, t, c, F, origin, cell)
+    F, origin, cell = align.correction_field(xz, P[:, 1] / 1000.0 / sc, H)
+    fit = align.Fit(ang, t, c, F, origin, cell, s=sc, warp=warp)
     log("  height correction: median %.2f m; %d ground textures laid on the collision" % (float(np.median(F)), len(ground)))
-    return fit, road | ground, H
+    return fit, road | ground, H, share
 
 
-def scene_strips(strips, fit, H, ground=()):
+def _under_line(T, tids, ang, t, c, line, res=0.5):
+    """share of the 08 line points (mapped into MotoGP 4 metres) lying on each texture
+    (the topmost surface: big ground planes lie under the road)"""
+    from PIL import ImageDraw
+    q = (line - c) @ align._rot(ang).T + t
+    lo = q.min(0) - 20; n = (np.ceil((q.max(0) + 20 - lo) / res)).astype(int)
+    img = Image.new("I", (int(n[0]), int(n[1])), -1); dr = ImageDraw.Draw(img)
+    order = np.argsort(T[:, :, 1].mean(1))
+    for P, k in zip(T[order][:, :, [0, 2]], tids[order]):
+        dr.polygon([tuple((p - lo) / res) for p in P], fill=int(k))
+    lab = np.array(img); ij = ((q - lo) / res).astype(int)
+    hit = lab[ij[:, 1], ij[:, 0]]
+    ks, cnt = np.unique(hit[hit >= 0], return_counts=True)
+    return {int(k): v / len(q) for k, v in zip(ks, cnt)}
+
+
+def scene_strips(strips, fit, H, ground=(), tex=None):
     """[(tid, kind, [(pos,uv,rgba), ...])] triangle strips in 08 space; vertices near the
-    ground are laid on the 08 collision. Exact duplicates are dropped."""
+    ground are laid on the 08 collision. Exact duplicates are dropped, and so are blended
+    overlays that the 08 alpha test (cut-out at half alpha) would not draw at all."""
+    faint = {t for t, im in (tex or {}).items() if (im[..., 3] >= 128).mean() < 0.05}
     out = []
     for s in strips:
-        if s["flags"][:1] == (1,) and s["tid"] in (4001, 4002):
-            continue                                   # rubber/skid overlays (their textures are not in the track set)
+        if s["flags"][:1] == (1,) and (s["tid"] in faint or max(v[3][3] for v in s["verts"]) < 64):
+            continue                                   # soft blends (rubber, dust, tints): invisible with an alpha test
         vs = s["verts"]
         P = np.array([v[0] for v in vs], float)
         Q = fit.point(P)
-        h = align.sample_grid(H, Q[:, [0, 2]])
-        if s["tid"] in ground:                         # terrain: follow the 08 collision exactly
-            ok = ~np.isnan(h)
-        else:                                          # other geometry: only vertices already near the ground
-            ok = ~np.isnan(h) & (np.abs(Q[:, 1] - np.nan_to_num(h)) < 1.0)
+        h = align.ground_height(H, Q[:, [0, 2]], Q[:, 1])
+        # terrain follows the 08 collision where it is close to it (where MotoGP 4 has a bank and
+        # 08 a flat run-off, the bank keeps its shape); other geometry only near the ground
+        tol = 3.0 if s["tid"] in ground else 1.0
+        ok = ~np.isnan(h) & (np.abs(Q[:, 1] - np.nan_to_num(h)) < tol)
         Q[ok, 1] = h[ok] + 0.02
         kind = "cut" if s["flags"][:1] == (1,) else "solid"
         if kind == "cut":
             Q[ok, 1] += 0.02                           # blended decals (lines, kerb paint) sit on top
-        # every maximal run of drawn triangles (k, k+1, k+2 with no ADC on k+2) is one strip
+        # every maximal run of drawn triangles (k, k+1, k+2 with no ADC on k+2) is one strip;
+        # a triangle far bigger than the rest of its strip joins unrelated parts: it is left out
+        edge = np.linalg.norm(Q[1:] - Q[:-1], axis=1)
+        big = np.zeros(len(vs), bool)
+        if len(edge) > 2:
+            tri_edge = np.maximum(np.maximum(edge[:-1], edge[1:]), np.linalg.norm(Q[2:] - Q[:-2], axis=1))
+            big[2:] = tri_edge > max(30.0, 8 * float(np.median(edge)))
         k = 0; n = len(vs)
         while k < n - 2:
-            if vs[k + 2][4]:
+            if vs[k + 2][4] or big[k + 2]:
                 k += 1; continue
             e = k
-            while e + 1 < n - 2 and not vs[e + 3][4]:
+            while e + 1 < n - 2 and not vs[e + 3][4] and not big[e + 3]:
                 e += 1
             out.append((s["tid"], kind, [(tuple(Q[j]), vs[j][2], vs[j][3]) for j in range(k, e + 3)]))
             k = e + 1
@@ -145,10 +188,10 @@ def scene_strips(strips, fit, H, ground=()):
     return keep
 
 
-def apply_budget(strips, budget, col_xz, H=None, log=print):
+def apply_budget(strips, budget, col_xz, H=None, track_xz=None, log=print):
     """keep at most `budget` triangles, by apparent size seen from the track: area / distance^2.
-    With the 08 height grid `H`, the ground lying on the collision is always kept (gaps there
-    would show right under the wheels)."""
+    With the 08 height grid `H` and the tarmac points `track_xz`, the ground lying on the
+    collision within 12 m of the tarmac is always kept (gaps there show under the wheels)."""
     ntri = sum(len(sv) - 2 for _, _, sv in strips)
     if ntri <= budget:
         return strips
@@ -169,8 +212,9 @@ def apply_budget(strips, budget, col_xz, H=None, log=print):
         area = sum(np.linalg.norm(np.cross(P[k + 1] - P[k], P[k + 2] - P[k])) / 2 for k in range(len(P) - 2))
         score.append(area / (dist(P.mean(0)[[0, 2]]) + 10.0) ** 2)
         if H is not None:
-            h = align.sample_grid(H, P[:, [0, 2]])
-            if (~np.isnan(h)).all() and (np.abs(P[:, 1] - h) < 0.1).all():
+            h = align.ground_height(H, P[:, [0, 2]], P[:, 1])
+            if (~np.isnan(h)).all() and (np.abs(P[:, 1] - h) < 0.1).all() and \
+                    (track_xz is None or track_xz.query(P.mean(0)[[0, 2]])[0] < 12):
                 score[-1] = np.inf
     order = np.argsort(score)[::-1]; acc = 0; sel = []
     for k in order:
@@ -208,7 +252,7 @@ def fill_holes(scene, col_tris, col_terrain, H, log=print, res=0.5, half=1400):
         for k in range(len(P) - 2):
             tris.append(P[k:k + 3]); own.append((si, k))
     tris = np.array(tris)
-    h = align.sample_grid(H, tris.mean(1)[:, [0, 2]])
+    h = align.ground_height(H, tris.mean(1)[:, [0, 2]], tris[:, :, 1].mean(1))
     dy = tris[:, :, 1].mean(1) - np.nan_to_num(h)
     nrm = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
     up = np.abs(nrm[:, 1]) > 0.5 * np.linalg.norm(nrm, axis=1)
@@ -219,7 +263,7 @@ def fill_holes(scene, col_tris, col_terrain, H, log=print, res=0.5, half=1400):
         dc.polygon(px(T), fill=1)
         tid, kind, sv = scene[si]
         a = abs(_cross2(T[1, [0, 2]] - T[0, [0, 2]], T[2, [0, 2]] - T[0, [0, 2]])) / 2
-        if kind != "solid" or a < 0.05 or abs(T[:, 1].mean() - align.sample_grid(H, T.mean(0)[None, [0, 2]])[0]) > 0.3:
+        if kind != "solid" or a < 0.05 or abs(T[:, 1].mean() - align.ground_height(H, T.mean(0)[None, [0, 2]], T[:, 1].mean()[None])[0]) > 0.3:
             continue
         i, j = cells(T.mean(0)[None])
         if terr[j[0], i[0]] < len(names):
@@ -338,7 +382,8 @@ def _geometry(tmpl, strips, used_names):
     mats = [make_material(mats0[0], n) for n in names]
     used_names.update(names)
     S = [(mi[texname(t, dc)], [((p[0], p[1], p[2]), (0.0, 1.0, 0.0), uv,
-                                 (min(255, c[0] * 2), min(255, c[1] * 2), min(255, c[2] * 2), 255)) for p, uv, c in v])
+                                 (min(255, c[0] * 2), min(255, c[1] * 2), min(255, c[2] * 2),
+                                  min(255, c[3] * 2) if dc and len(c) > 3 else 255)) for p, uv, c in v])
          for t, dc, v in strips]
     g, _, _ = build_geometry_strips(tmpl, S, mats, flags=0x0001000E)
     return g
@@ -380,7 +425,9 @@ def build_txd(txd, tex, used_names, glow_names):
         p = q.getpalette()[: 3 * 256]; p += [0] * (768 - len(p))
         pal[:, :3] = np.array(p).reshape(256, 3); pal[:, 3] = 255
         if is_cut:
-            idx[a < 128] = 255; pal[255] = (0, 0, 0, 0); cut.add(name)
+            idx[a < 128] = 255; pal[255] = (0, 0, 0, 0)
+        if name.endswith("D"):
+            cut.add(name)        # alpha-tested: the vertex alpha of blended strips cuts them too
         new.append(ps2tex.make_raster(tmpl["8888"], name, idx, pal))
     td.children = [c for c in td.children if c.type != 0x15 and c.type != 0x03] + keep + new + \
                   [c for c in td.children if c.type == 0x03]

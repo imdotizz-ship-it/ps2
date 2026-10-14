@@ -77,15 +77,16 @@ def render(tris, view='side', size=(800,500), colors=None, texs=None, uvs=None, 
             u=l0*uvs[i][0][0]+l1*uvs[i][1][0]+l2*uvs[i][2][0]
             v=l0*uvs[i][0][1]+l1*uvs[i][1][1]+l2*uvs[i][2][1]
             texel=tx[(np.floor(v*th).astype(int)%th),(np.floor(u*tw).astype(int)%tw)]
-            if tx.shape[-1]==4 and (tx[...,3]<128).any() and (tx[...,3]==0).mean()>0.001:
-                m&=texel[...,3]>=128                      # alpha test (failed pixels write neither colour nor depth)
+            va=colors[i][3] if colors is not None and len(colors[i])>3 else 255
+            if tx.shape[-1]==4 and ((tx[...,3]<128).any() and (tx[...,3]==0).mean()>0.001 or va<255):
+                m&=texel[...,3].astype(float)*va/255>=128 # alpha test on texture x vertex alpha (failed pixels write nothing)
                 if not m.any(): continue
             sub[m]=zz[m]
             px=texel[...,:3].astype(float)
-            if colors is not None: px=px*np.asarray(colors[i])/255.0
+            if colors is not None: px=px*np.asarray(colors[i][:3])/255.0
             img[y0:y1+1,x0:x1+1][m]=np.clip(px[m]*shade,0,255).astype(np.uint8)
         else:
             sub[m]=zz[m]
-            c=np.asarray(colors[i] if colors is not None else (200,200,200),float)
+            c=np.asarray(colors[i][:3] if colors is not None else (200,200,200),float)
             img[y0:y1+1,x0:x1+1][m]=np.clip(c*shade,0,255).astype(np.uint8)
     return Image.fromarray(img)

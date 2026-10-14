@@ -40,5 +40,5 @@ def scene(slf,txd,lod=0,skip=(),types=(0x303,0x403,0x103,0x203)):
             tris.append([V[b],V[a],V[c]])
             uvs.append([G.uvsets[0][b],G.uvsets[0][a],G.uvsets[0][c]] if G.uvsets else [(0,0)]*3)
             tids.append((names[mid] or '').upper())
-            cols.append(tuple(np.mean([G.prelit[k][:3] for k in (a,b,c)],0)) if G.prelit else (255,255,255))
+            cols.append(tuple(np.mean([G.prelit[k][:4] for k in (a,b,c)],0)) if G.prelit else (255,255,255))
     return tris,uvs,tids,cols,texs

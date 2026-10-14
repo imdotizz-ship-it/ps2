@@ -100,7 +100,10 @@ def cmd_build(args):
     strips, tex = track08.load_mgp4(cpath, fpath)
     col, ter = rwworld.triangles(rwworld.world(files[f"{folder}\\{info['bsp']}.BSP"]))
     spl = files[f"{folder}\\{info['spl']}.SPL"].decode("latin1")
-    fit, ground, H = track08.fit_track(strips, spl, col, ter)
+    fit, ground, H, share = track08.fit_track(strips, spl, col, ter)
+    if share < 0.4:
+        print(f"warning: only {share:.0%} of the 08 tarmac is covered by the MotoGP 4 road; "
+              "the circuits differ too much or the fit failed (check the preview)")
     first = files[f"{folder}\\{scenes[0]}.SLF"]
     budget = args.budget
     if budget is None:
@@ -114,9 +117,11 @@ def cmd_build(args):
                     pass
         budget = 2 * n
     road_xz = col[np.isin(ter, ["TARMAC", "CORDOLO", "TARMACPIT", "GRASS", "SAND"])].mean(1)[:, [0, 2]]
-    scene = track08.scene_strips(strips, fit, H, ground)
+    scene = track08.scene_strips(strips, fit, H, ground, tex)
     scene = track08.fill_holes(scene, col, ter, H)
-    scene = track08.apply_budget(scene, budget, road_xz, H)
+    from scipy.spatial import cKDTree
+    tarmac = cKDTree(col[np.isin(ter, ["TARMAC", "CORDOLO", "TARMACPIT"])].mean(1)[:, [0, 2]])
+    scene = track08.apply_budget(scene, budget, road_xz, H, tarmac)
     used = set(); new = {}
     for s in scenes:
         new[f"{folder}\\{s}.SLF"] = track08.build_scene(files[f"{folder}\\{s}.SLF"], scene, ground, used)
