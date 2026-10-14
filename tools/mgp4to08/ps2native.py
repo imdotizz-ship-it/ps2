@@ -193,17 +193,76 @@ def to_native(geom):
     return Chunk(0xF, b'', [Chunk(1, st, None, geom.ver), geom.first(8)] + [Chunk(3, b'', ext, geom.ver)], geom.ver)
 
 
-def nativize_slf(d):
-    """an SLF whose every model geometry is native (see the module notes)"""
+def template_materials(slf, sli):
+    """{object short name: [native material chunks]} of a bike as the game ships it: its plain .SLF
+    paired with the native geometry of its .SLI (paired by vertex and triangle counts, in order)"""
+    from .slf import dirents
+    from .build08 import Obj
+    natives = {}
+    for i in range(len(sli) - 24):
+        t, sz, v = struct.unpack_from('<3I', sli, i)
+        if t == 0xF and v == 0x1c020037 and struct.unpack_from('<I', sli, i + 12)[0] == 1:
+            fl, nt, nv, nm = struct.unpack_from('<4I', sli, i + 24)
+            if fl & NATIVE:
+                natives.setdefault((nv, nt), []).append(read(sli, i, i + 12 + sz)[0])
+    out = {}
+    _, es = dirents(slf)
+    for e in es:
+        if e[3] not in (0x303, 0x403): continue
+        for at in Obj(slf, e).atomics():
+            fl, nt, nv, _ = struct.unpack_from('<4I', at.first(0xF).first(1).data)
+            cand = natives.get((nv, nt))
+            if cand:
+                out.setdefault(e[0].split('@')[0], []).extend(cand.pop(0).first(8).find(7))
+    return out
+
+
+def _effect(m):
+    ext = m.first(3)
+    c = ext.first(0xfffe) if ext is not None else None
+    return c.data if c is not None else None
+
+
+def native_material(plain, templates, obj):
+    """the material as the native bike pipeline wants it (pipeline rights 0x1f, MatFX environment map
+    without the run-time cube texture, sky mipmap K on the textures...): a copy of the game's native
+    material of the same object and effect, with the texture name and colour of `plain`"""
+    import copy
+    same = templates.get(obj, [])
+    every = [m for ms in templates.values() for m in ms if m.first(6) is not None]
+    eff = _effect(plain)
+    pick = (next((m for m in same if _effect(m) == eff and m.first(6) is not None), None)
+            or next((m for m in same if m.first(6) is not None), None)
+            or next((m for m in every if _effect(m) == eff), None)
+            or every[0])
+    m = copy.deepcopy(pick)
+    st = bytearray(m.first(1).data); st[4:8] = plain.first(1).data[4:8]; m.first(1).data = bytes(st)
+    tp, tm = plain.first(6), m.first(6)
+    if tp is not None and tm is not None:
+        name = tp.find(2)[0].data.split(b'\0')[0].decode('latin1').upper().encode('latin1') + b'\0'
+        name += b'\0' * (-len(name) % 4)
+        tm.find(2)[0].data = name
+    if eff is not None and m.first(3) is not None and m.first(3).first(0xfffe) is not None:
+        m.first(3).first(0xfffe).data = eff
+    return m
+
+
+def nativize_slf(d, templates=None):
+    """an SLF whose every drawn model geometry is native (see the module notes); `templates` from
+    template_materials() of the bike the model was made from converts the materials as well"""
     from .slf import dirents
     from .build08 import Obj, rebuild_slf
     _, es = dirents(d)
     objs = {e[0]: Obj(d, e) for e in es if e[3] in (0x303, 0x403)}
-    for o in objs.values():
+    for name, o in objs.items():
         for at in o.atomics():
             g = at.first(0xF)
             if struct.unpack_from('<I', g.first(1).data)[0] & 0x04:    # drawn (textured): not the collision shape
-                at.children[at.children.index(g)] = to_native(g)
+                ng = to_native(g)
+                if templates:
+                    ml = ng.first(8)
+                    ml.children = [ml.children[0]] + [native_material(m, templates, name.split('@')[0]) for m in ml.find(7)]
+                at.children[at.children.index(g)] = ng
     return rebuild_slf(d, objs)
 
 
