@@ -458,4 +458,5 @@ def build_txs(txs, used_names, cut):
     text = txs.decode("latin1").rstrip("\r\n")
     nl = "\r\n" if "\r\n" in text else "\n"
     lines = ["%-36s%s" % (n, ("KT5A128" if n in cut else "") + "Zc") for n in sorted(used_names) if n.startswith("M4_")]
-    return (text + nl + nl.join(lines) + nl).encode("latin1")
+    # the game reads entries up to an empty line: keep the blank line that ends every TXS
+    return (text + nl + nl.join(lines) + nl + nl).encode("latin1")

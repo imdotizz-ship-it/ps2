@@ -93,5 +93,5 @@ def convert(class_dir,slot,bike_path,common_path):
     txd=write([td])
     txs=open(base+'.TXS','rb').read().decode('latin1').rstrip('\r\n')
     nl='\r\n' if '\r\n' in txs else '\n'
-    txs=(txs+nl+nl.join(txs_add)+nl).encode('latin1')
+    txs=(txs+nl+nl.join(txs_add)+nl+nl).encode('latin1')   # entries end at an empty line
     return slf,txd,txs,stats
