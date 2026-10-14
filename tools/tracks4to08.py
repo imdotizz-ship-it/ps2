@@ -124,7 +124,8 @@ def cmd_build(args):
     scene = track08.apply_budget(scene, budget, road_xz, H, tarmac)
     used = set(); new = {}
     for s in scenes:
-        new[f"{folder}\\{s}.SLF"] = track08.build_scene(files[f"{folder}\\{s}.SLF"], scene, ground, used)
+        new[f"{folder}\\{s}.SLF"] = track08.unique_effects(
+            track08.build_scene(files[f"{folder}\\{s}.SLF"], scene, ground, used))
     glow = set()
     if "glw" in info and f"{folder}\\{info['glw']}.GLW" in files:
         glow = {m.upper() for m in re.findall(r"TextureName\s*=\s*(\S+)", files[f"{folder}\\{info['glw']}.GLW"].decode("latin1"))}

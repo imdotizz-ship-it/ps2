@@ -460,3 +460,43 @@ def build_txs(txs, used_names, cut):
     lines = ["%-36s%s" % (n, ("KT5A128" if n in cut else "") + "Zc") for n in sorted(used_names) if n.startswith("M4_")]
     # the game reads entries up to an empty line: keep the blank line that ends every TXS
     return (text + nl + nl.join(lines) + nl + nl).encode("latin1")
+
+
+def unique_effects(slf):
+    """every scene material needs its own Selene effect slot (material extension 0xfffe = index of an
+    'Effect_N' entry; the game binds one material per effect at load). Materials cloned from an 08
+    template share the template's effect, and all but one render with a sky-reflection-like flat
+    colour (the light blue roads). Give each MotoGP 4 material a free effect, adding entries as needed."""
+    from .slf import add_effects
+    _, es = dirents(slf)
+    neff = sum(1 for x in es if x[3] == 0x106)
+    objs, mine, used = {}, [], set()
+    for i, x in enumerate(es):
+        if x[3] not in (0x103, 0x203):
+            continue
+        try:
+            o = Obj(slf, x)
+        except AssertionError:
+            continue
+        objs[i] = o
+        for at in o.atomics():
+            for m in at.first(0xF).first(8).find(7):
+                ext, t = m.first(3), m.first(6)
+                if ext is None or ext.first(0xfffe) is None:
+                    continue
+                name = t.find(2)[0].data.split(b"\0")[0] if t is not None else b""
+                if name.upper().startswith(b"M4_"):
+                    mine.append(ext.first(0xfffe))
+                else:
+                    used.add(struct.unpack("<i", ext.first(0xfffe).data)[0])
+    if not mine:
+        return slf
+    free = [k for k in range(neff) if k not in used]
+    extra = max(0, len(mine) - len(free))
+    for j, c in enumerate(mine[:len(free)]):
+        c.data = struct.pack("<i", free[j])
+    for j, c in enumerate(mine[len(free):]):
+        c.data = struct.pack("<i", neff + j)
+    out = rebuild_slf(slf, objs)
+    out, _ = add_effects(out, extra)
+    return out
