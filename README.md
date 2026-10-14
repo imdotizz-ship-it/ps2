@@ -42,13 +42,20 @@ que se vê. Assen, Le Mans e Motegi continuam com o visual do 08 (veja o
 porquê em [pistas](docs/formats/pistas.md#resultado)), e Indianápolis, Laguna
 Seca, Misano e Xangai não existem no MotoGP 4.
 
-**Ainda não testado em emulador nem console.** Tudo foi validado remontando
-e relendo os arquivos, por prévias renderizadas aqui, e a montagem da ISO pela
-página foi testada num navegador (SHA-1 idêntico ao esperado). O risco maior
-são as pistas: o cenário novo tem até o dobro de triângulos do original e o
-jogo carrega a versão `.SLF` em vez da pré-compilada `.SLI`. Se uma pista
-travar ao carregar, dá para gerar o patch com menos triângulos (`--budget` em
-`tools/tracks4to08.py`).
+**Testado no emulador PCSX2** (compilado a partir do código-fonte, com BIOS
+PAL v1.60): a ISO completa inicia, e a Corrida Rápida roda em Losail e em Jerez
+com as motos e as pistas do MotoGP 4, em velocidade normal. Para isso foi
+preciso:
+
+- gerar a geometria das motos no formato nativo do PS2 (`tools/mgp4to08/ps2native.py`):
+  o jogo trava se tiver que converter sozinho o modelo de uma moto;
+- não acrescentar texturas às motos (uma a mais já corrompe a imagem): as
+  texturas do MotoGP 4 vão num atlas no lugar da pintura original;
+- dar a cada material das pistas o seu próprio "efeito" do motor Selene (sem
+  isso o asfalto saía azul-claro, da cor do céu).
+
+Ainda não testados no emulador: o Safety Car, cada uma das 11 pistas (só
+Losail e Jerez foram corridas) e o hardware real.
 
 ![Largada de cada pista convertida](docs/pistas-motogp4.jpg)
 
@@ -125,7 +132,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`848c0fa797caf14ee57f4fb1d22a365179651870` com FOV 70 e sem Safety Car; as
+(`941fde03f41cfa198ce30572f3fb091054dda024` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou

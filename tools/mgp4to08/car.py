@@ -15,6 +15,7 @@ from .mgp4obj import packets
 from .mgp4mesh import mesh, strip_tris
 from .ps2native import nativize_slf, template_materials
 from .ps2tex import encode_into, rename
+from .convert import build_atlas, ATLAS, ATLAS_NAME
 from .rw import read, write
 from .slf import dirents
 from .texdb import load_texdb
@@ -98,15 +99,22 @@ def build(bikes_dir, template, car_path, common_path, new_slot):
     ch = byshort["CHASSIS"]; ats = ch.atomics()
     mats0 = ats[0].first(0xF).first(8).children[1:]
     tmpl_liv = mats0[0]; tmpl_obj = mats0[1] if len(mats0) > 1 else mats0[0]
-    used = set(); stats = []
+    stats = []
+    lods = [car_triangles(car_path, min(lod, 1)) for lod in range(len(ats[:2]))]
+    used = sorted({t for tris in lods for t, _ in tris})
+    atlas_idx, atlas_pal, rects = build_atlas(db, used, ATLAS)
     for lod, at in enumerate(ats[:2]):
-        tris = car_triangles(car_path, min(lod, 1))
-        tids = sorted({t for t, _ in tris}); mi = {t: i for i, t in enumerate(tids)}
-        mats = [make_material(tmpl_liv if t in own else tmpl_obj, texname(t)) for t in tids]
+        tris = []
+        for t, tri in lods[lod]:
+            x, y, w, h = rects[t]
+            fu = np.floor(min(v[2][0] for v in tri)); fv = np.floor(min(v[2][1] for v in tri))
+            tris.append((0, [(v[0], v[1], ((x + 0.5 + min(max(v[2][0] - fu, 0), 1) * (w - 1)) / ATLAS,
+                                           (y + 0.5 + min(max(v[2][1] - fv, 0), 1) * (h - 1)) / ATLAS), v[3])
+                             for v in tri]))
         g = at.first(0xF)
-        ng, nv, nt = build_geometry(g, [(mi[t], tri) for t, tri in tris], mats)
+        ng, nv, nt = build_geometry(g, tris, [make_material(tmpl_liv, ATLAS_NAME)])
         at.children[at.children.index(g)] = ng
-        used |= set(tids); stats.append(nt)
+        stats.append(nt)
     # stretch the bike's collision shape over the car: x +-0.95 m, top 1.45 m, length of the car
     col = byshort.get("COLLISIONSHAPE")
     if col is not None:
@@ -129,38 +137,13 @@ def build(bikes_dir, template, car_path, common_path, new_slot):
         slf = nativize_slf(rebuild_slf(d, objs), template_materials(d, f.read()))
     slf = slf.replace(template.encode(), new_slot.encode()).replace(
         template.capitalize().encode(), new_slot.capitalize().encode())
-    # textures: the 08 square 8-bit rasters as templates
+    # textures: the game takes only the textures a bike ships with, so the MotoGP 4 textures go into
+    # an atlas written over the template's livery textures (see convert.build_atlas)
     td = read(open("%s/%s/PICTURES/%s.TXD" % (bikes_dir, template, template), "rb").read())[0]
-    tmpl = {}
     for tn in td.find(0x15):
-        info = read(tn.children[3].data)[0].data
-        w, h, dep, fmt = struct.unpack_from("<4I", info)
-        if dep == 8 and fmt & 0xf00 == 0x500 and w == h and w not in tmpl:
-            tmpl[w] = tn
-    txs_add = []
-    have = {tn.children[1].data.split(b"\0")[0].decode().upper() for tn in td.find(0x15)}
-    for t in sorted(used):
-        if texname(t).upper() in have:
-            continue                       # shared with the template bike (same MotoGP 4 texture)
-        img = db[t]; h, w = img.shape[:2]; s = max(w, h)
-        s = min([k for k in sorted(tmpl) if k >= s] or [max(tmpl)])
-        a = np.array(Image.fromarray(img, "RGBA").resize((s, s), Image.NEAREST))
-        cut = (a[..., 3] < 128).mean() > 0.005
-        q = Image.fromarray(a[..., :3]).quantize(255, method=Image.MEDIANCUT, dither=Image.NONE)
-        idx = np.array(q).astype(np.uint8)
-        pal = np.zeros((256, 4), np.uint8)
-        p = q.getpalette()[:255 * 3]; p += [0] * (255 * 3 - len(p))
-        pal[:255, :3] = np.array(p).reshape(255, 3)
-        if cut:
-            idx[a[..., 3] < 128] = 255; pal[255] = (0, 0, 0, 0); pal[:255, 3] = 255
-        else:
-            pal[:, 3] = 0x50 * 255 // 128
-        tn = copy.deepcopy(tmpl[s]); encode_into(tn, idx, pal); rename(tn, texname(t))
-        td.children.append(tn)
-        txs_add.append("%-36s%s" % (texname(t), "KT5A128" if cut else ""))
-    st = bytearray(td.first(1).data); struct.pack_into("<H", st, 0, len(td.find(0x15))); td.first(1).data = bytes(st)
+        name = tn.children[1].data.split(b"\0")[0].decode().upper()
+        if name.startswith("CHASSIS") and name.endswith("_0"):
+            encode_into(tn, atlas_idx, atlas_pal)
     txd = write([td])
-    txs = open(base + ".TXS", "rb").read().decode("latin1").rstrip("\r\n")
-    nl = "\r\n" if "\r\n" in txs else "\n"
-    txs = (txs + nl + nl.join(txs_add) + nl + nl).encode("latin1")   # entries end at an empty line
+    txs = open(base + ".TXS", "rb").read()
     return slf, txd, txs, stats
