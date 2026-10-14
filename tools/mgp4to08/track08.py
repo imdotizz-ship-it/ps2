@@ -107,12 +107,9 @@ def fit_track(strips, spl_text, col_tris, col_terrain, log=print):
     Hall = align.height_grid(col_tris, 1.0)
     over = ~np.isnan(align.sample_grid(Hall, fit.xz(T4.mean(1)[:, [0, 2]])))
     ground = {k for k in np.unique(tid4) if flat[tid4 == k].mean() > 0.8 and over[tid4 == k].mean() > 0.6}
-    # vertical correction from the MotoGP 4 road surfaces over the 08 collision (banks and
-    # hills differ between the games; the road is what has to match)
+    # vertical correction from the MotoGP 4 vertices over the 08 collision
     H = align.height_grid(col_tris, 1.0, layers=True)
-    P = np.array([v[0] for s in strips if s["tid"] in road for v in s["verts"]], float)
-    if len(P) < 1000:
-        P = W[near]
+    P = W[near]
     xz = fit.xz(P[:, [0, 2]])
     F, origin, cell = align.correction_field(xz, P[:, 1] / 1000.0 / sc, H)
     fit = align.Fit(ang, t, c, F, origin, cell, s=sc, warp=warp)
@@ -149,10 +146,10 @@ def scene_strips(strips, fit, H, ground=(), tex=None):
         P = np.array([v[0] for v in vs], float)
         Q = fit.point(P)
         h = align.ground_height(H, Q[:, [0, 2]], Q[:, 1])
-        # terrain follows the 08 collision where it is close to it (where MotoGP 4 has a bank and
-        # 08 a flat run-off, the bank keeps its shape); other geometry only near the ground
-        tol = 3.0 if s["tid"] in ground else 1.0
-        ok = ~np.isnan(h) & (np.abs(Q[:, 1] - np.nan_to_num(h)) < tol)
+        if s["tid"] in ground:                         # terrain: follow the 08 collision exactly
+            ok = ~np.isnan(h)
+        else:                                          # other geometry: only vertices already near the ground
+            ok = ~np.isnan(h) & (np.abs(Q[:, 1] - np.nan_to_num(h)) < 1.0)
         Q[ok, 1] = h[ok] + 0.02
         kind = "cut" if s["flags"][:1] == (1,) else "solid"
         if kind == "cut":

@@ -45,10 +45,11 @@ objetos não mudam, então o `.PVS` continua valendo. A cópia pré-compilada
 3. Deformação suave no plano (malha de 16 m), puxando o asfalto do MotoGP 4
    para cima do asfalto do 08: os circuitos da Namco não são réplicas
    exatas (Doha precisou de até 8,6 m).
-4. Correção de altura suave a partir do asfalto. O terreno do MotoGP 4 é
-   assentado na colisão do 08 onde está a menos de 3 m dela (barrancos
-   mantêm a forma). Onde há duas camadas de colisão (pontes), vale a mais
-   próxima.
+4. Correção de altura suave (malha de 8 m) e o terreno do MotoGP 4
+   assentado na colisão do 08. Onde há duas camadas de colisão (pontes),
+   vale a mais próxima. Triângulos muito maiores que o resto da sua tira
+   (ligações espúrias entre peças) são descartados, e nas camadas mescladas
+   o alfa do vértice entra no teste de alfa do 08.
 5. Onde a colisão do 08 não tem chão do MotoGP 4 por cima, os triângulos da
    colisão viram chão, com a textura do MotoGP 4 mais comum naquele tipo de
    terreno, 5 cm abaixo.
