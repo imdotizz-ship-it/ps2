@@ -376,8 +376,22 @@ def build_scene(slf, strips, road, used_names):
                         tx.find(2)[0].data = string_chunk(FALLBACK).data
                 used_names.add(FALLBACK)
             at.children[at.children.index(g)] = ng
+            _no_matfx(at)
         out[i] = o
     return rebuild_slf(slf, out)
+
+
+def _no_matfx(atomic):
+    """the 08 road objects are lightmapped: a MatFX dual pass on a second uv set, which the new
+    geometry does not have (the game then samples nonsense, the road came out flat light blue).
+    Drop the MatFX pipeline from the atomic and the effect from its materials."""
+    ext = atomic.first(3)
+    if ext is not None:
+        ext.children = [c for c in ext.children if c.type not in (0x1F, 0x120)]
+    for m in atomic.first(0xF).first(8).find(7):
+        me = m.first(3)
+        if me is not None:
+            me.children = [c for c in me.children if c.type != 0x120]
 
 
 def _geometry(tmpl, strips, used_names):
