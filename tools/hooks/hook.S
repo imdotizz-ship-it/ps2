@@ -263,3 +263,20 @@ game_show:
 game_fall_evt:
         j    0x414bd0
         nop
+
+# H8: replaces 'jal 0x2f6060' (BikeGfx LOD/part visibility pass, a0 = BikeGfx) at 0x2f1a90.
+# After it, bike_parts() re-hides the parts of bikes that lost them in a crash.
+        .globl hook_bike_parts
+hook_bike_parts:
+        SAVEALL
+        sw   $a0, 0xc4($sp)
+        jal  bike_pre               # void bike_pre(u8 *B): before the LOD pass
+        nop
+        lw   $a0, 0xc4($sp)
+        jal  0x2f6060
+        nop
+        jal  bike_parts             # void bike_parts(u8 *B)
+        lw   $a0, 0xc4($sp)
+        RESTALL
+        jr   $ra
+        addiu $sp, $sp, 0x100

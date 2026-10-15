@@ -18,6 +18,19 @@ struct gorestate { u32 magic, spawns, live, seed; };
 __attribute__((section(".data"))) struct gorestate GORE = { 0x45524f47 /* 'GORE' */, 0, 0, 0x2545f491 };
 static P PT[NP];
 static int flt(float a, float b);
+/* bikes whose windscreen broke off: Selene part node at BikeGfx(ctl+0xae0)+0x10c / +0x118,
+ * hidden flag = node byte 0 bit 0x40 (re-applied every frame after the game's LOD pass 0x2f6060) */
+static u8 *BROKEN[24]; static int nbroken;
+void gore_reset(void) { nbroken = 0; }
+void bike_pre(u8 *B) { extern void td_bike_lod(u8 *, u8 *); td_bike_lod(*(u8 **)(B + 0x3bc), B); }
+void bike_parts(u8 *B) {
+    u8 *veh = *(u8 **)(B + 0x3bc);
+    for (int i = 0; i < nbroken; i++) if (BROKEN[i] == veh) {
+        u8 *n = *(u8 **)(B + 0x10c); if ((u32)n > 0x100000 && (u32)n < 0x2000000) n[0] |= 0x40;
+        n = *(u8 **)(B + 0x118);     if ((u32)n > 0x100000 && (u32)n < 0x2000000) n[0] |= 0x40;
+        return;
+    }
+}
 /* active emitters: blood keeps coming out of the tumbling rider for ~2 s */
 typedef struct { u8 *veh; float t, acc, speed; } E;
 static E EM[4];
@@ -55,6 +68,7 @@ void gore_on_fall(u8 *veh, float speed, int fatal) {
     float s = speed; if (flt(30.0f, s)) s = 30.0f;
     int n = GORE_DROPS + (fatal ? 30 : 0);
     GORE.spawns++;
+    if (flt(12.0f, speed) && nbroken < 24) { int k; for (k = 0; k < nbroken && BROKEN[k] != veh; k++); if (k == nbroken) BROKEN[nbroken++] = veh; }
     for (int e = 0; e < 4; e++) if (!EM[e].veh || EM[e].veh == veh) { EM[e].veh = veh; EM[e].t = 0; EM[e].acc = 0; EM[e].speed = s; break; }
     for (int i = 0; i < n; i++) {
         P *p = alloc(); if (!p) break;

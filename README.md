@@ -39,7 +39,8 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | Motion blur | Acima de 90 km/h o quadro anterior é misturado ao atual, cada vez mais forte até 270 km/h (75%) |
 | Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele e gira ao redor em câmera lenta por uns 4 s enquanto o piloto automático do jogo (AUTODRIVE) guia a sua moto; depois volta para você |
 | Xingamentos | Quem cai depois de um toque xinga o rival num painel no estilo do HUD (fonte do próprio jogo, com acentos); se você cai, o bot zomba de você |
-| Sangue e destroços | Nas quedas sai um jato de sangue do piloto que deixa manchas pelo caminho, e peças da moto voam |
+| Sangue e destroços | Nas quedas sai um jato de sangue do piloto que deixa manchas pelo caminho, e peças da moto voam; numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida |
+| Briga | Às vezes, quando um bot derruba outro, a câmera corta para ele sacudindo o punho (gesto de raiva do próprio jogo, `rabbiaDX`) em câmera lenta, com o xingamento na tela |
 | Safety Car (experimental, opcional) | A BMW M6 Safety Car do MotoGP 4 como uma equipe e um piloto a mais, marcada na página de instalação |
 
 **Pistas do MotoGP 4 removidas do patch.** Nelas, colisão, traçado da IA, grid, câmeras de replay e cronometragem
@@ -146,7 +147,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`396186e93ed7cb9f0e378f7b8fde590ce616f4e2` com FOV 70 e sem Safety Car; as
+(`a431b481f92925f82b642907a65e64d6098f5cf9` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou

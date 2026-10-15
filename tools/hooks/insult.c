@@ -174,7 +174,11 @@ void bb_post(u8 *ctl, int which) {
         INS.td_show = SHOW_FR; INS.td_slow = TD_SLOW_FR;
         td_start(*(u8 **)(victim + 0x428));
     }
-    if (!is_human(victim)) say(victim, attacker, 0);     /* bot insults whoever hit him */
+    extern void td_fight(u8 *veh); extern int td_active(void);
+    if (!is_human(victim) && !is_human(attacker) && !td_active() && (rnd() % 3) == 0) {
+        td_fight(*(u8 **)(attacker + 0x428));            /* random fight cut: attacker shakes his fist */
+        say(attacker, victim, 0);
+    } else if (!is_human(victim)) say(victim, attacker, 0);     /* bot insults whoever hit him */
     else say(attacker, victim, 1);                       /* bot mocks the fallen player */
 }
 
@@ -202,7 +206,7 @@ float ins_sim_dt(float dt) {
 }
 void ins_tick(void) {               /* per pad read: drop state when not racing */
     INS.seed += 0x6d2b79f5u;
-    if (INS.alive && --INS.alive == 0) { INS.show = INS.td_show = INS.td_slow = 0; INS.cur = INS.a = INS.b = 0; }
+    if (INS.alive && --INS.alive == 0) { extern void gore_reset(void); gore_reset(); INS.show = INS.td_show = INS.td_slow = 0; INS.cur = INS.a = INS.b = 0; }
 }
 
 static int ins_flt(float a, float b) {   /* a < b, R5900-safe */

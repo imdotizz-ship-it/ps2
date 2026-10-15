@@ -77,7 +77,8 @@ HOOKS = [(0x38eeac, 0x1f5840, 'hook_input_update'),
          (0x27e79c, 0x2880f0, 'hook_ae_render'),     # motion blur: race render after-effects
          (0x2806f8, 0x2880f0, 'hook_ae_render'),
          (0x281630, 0x2880f0, 'hook_ae_render'),
-         (0x4c57ac, 0x20ee80, 'hook_fov'),           # FOV menu option -> race camera
+         (0x4c57ac, 0x20ee80, 'hook_fov'),
+         (0x2f1a90, 0x2f6060, 'hook_bike_parts'),     # crash damage: hide broken windscreens           # FOV menu option -> race camera
          ]
 for site, orig, name in HOOKS:
     assert rd(site) == jal(orig), 'site %x has %08x, expected jal %x' % (site, rd(site), orig)
