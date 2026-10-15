@@ -1,0 +1,87 @@
+#!/usr/bin/env python3
+"""Build hook payload (hook.S + user.c) and produce a patched ELF copy.
+usage: python3 build_hook.py [IN_ELF] [OUT_ELF]
+ - payload is linked at SEG_VA (0x859f80, right after the libc 16KB heap) and added as PT_LOAD #2
+ - game heap start is moved up by HEAP_SHIFT via 'lui v1,K' at 0x103fec (heap base = 0x859f80+K*0x10000)
+ - call sites are redirected by rewriting their jal targets
+"""
+import os, sys, struct, subprocess, capstone
+HERE = os.path.dirname(os.path.abspath(__file__))
+IN = sys.argv[1] if len(sys.argv) > 1 else '/home/user/extracted/mgp08/SLUS_218.11'
+OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, 'out', 'SLUS_218.11')
+SEG_VA = 0x859f80
+CL = ['clang', '--target=mips64el-unknown-none-gnuabin32', '-march=mips3', '-mabi=n32', '-msingle-float',
+      '-mno-abicalls', '-fno-pic', '-G0', '-Os', '-ffreestanding', '-nostdlib', '-fno-builtin',
+      '-fomit-frame-pointer', '-fno-fast-math', '-ffp-contract=off', '-fno-jump-tables', '-mno-check-zero-division']
+EXTRA = os.environ.get('RFDEF', '').split()
+B = os.path.join(HERE, 'build'); os.makedirs(B, exist_ok=True); os.makedirs(os.path.dirname(OUT), exist_ok=True)
+def run(c): print(' '.join(c)); subprocess.check_call(c)
+run(CL + ['-c', os.path.join(HERE, 'hook.S'), '-o', B + '/hook.o'])
+run(CL + ['-c', os.path.join(HERE, 'user.c'), '-o', B + '/user.o'])
+run(CL + ['-c', os.path.join(HERE, 'freecam.c'), '-o', B + '/freecam.o'])
+run(CL + EXTRA + ['-c', os.path.join(HERE, 'redflag.c'), '-o', B + '/redflag.o'])
+run(['ld.lld', '-m', 'elf32ltsmipn32', '-T', os.path.join(HERE, 'link.ld'), '--no-check-sections', '-o', B + '/payload.elf',
+     B + '/hook.o', B + '/user.o', B + '/freecam.o', B + '/redflag.o'])
+run(['llvm-objcopy', '-O', 'binary', B + '/payload.elf', B + '/payload.bin'])
+syms = {}
+for l in subprocess.check_output(['llvm-nm', B + '/payload.elf']).decode().splitlines():
+    p = l.split()
+    if len(p) == 3: syms[p[2]] = int(p[0], 16)
+# memsz incl. bss
+hdr = subprocess.check_output(['llvm-objdump', '-h', B + '/payload.elf']).decode()
+end = SEG_VA
+for l in hdr.splitlines():
+    p = l.split()
+    if len(p) >= 4 and p[0].isdigit() and p[1].startswith('.'):
+        sz, va = int(p[2], 16), int(p[3], 16)
+        if va >= SEG_VA: end = max(end, va + sz)
+binv = open(B + '/payload.bin', 'rb').read()
+size = (max(len(binv), end - SEG_VA) + 0x7f) & ~0x7f
+binv = binv + b'\0' * (size - len(binv))
+# --- forbidden-opcode check (R5900 lacks these) ---
+md = capstone.Cs(capstone.CS_ARCH_MIPS, capstone.CS_MODE_MIPS64 + capstone.CS_MODE_LITTLE_ENDIAN)
+bad = ('trunc.', 'c.lt.', 'c.le.', 'c.eq.', 'c.nge', 'round.', 'ceil.', 'floor.', '.d ', 'c.un', 'c.ueq', 'c.ult', 'c.ule', 'c.ngt', 'c.nge', 'c.ngl', 'c.seq', 'c.ngle', 'c.sf',
+       'dmult', 'ddiv', 'll ', 'sc ', 'lld', 'scd', 'ldc1', 'sdc1', 'cvt.d', 'cvt.l', 'cvt.s.l', 'dmfc1', 'dmtc1', 'madd.s', 'msub.s')
+text_end = syms.get('__text_end', SEG_VA + size)
+probs = []
+def each_insn():   # word by word: capstone.disasm() stops at the first undecodable word (sq/lq/mmi)
+    for o in range(0, min(len(binv), text_end - SEG_VA) - 3, 4):
+        l = list(md.disasm(binv[o:o + 4], SEG_VA + o))
+        if l: yield l[0]
+for ins in each_insn():
+    s = ins.mnemonic + ' ' + ins.op_str
+    if any(s.startswith(b) or (' ' + b) in (' ' + s) for b in bad) or ins.mnemonic.endswith('.d'):
+        probs.append('%x %s' % (ins.address, s))
+if probs:
+    print('ERROR: R5900-incompatible instructions:\n  ' + '\n  '.join(probs)); sys.exit(1)
+print('payload %d bytes at %x..%x' % (size, SEG_VA, SEG_VA + size))
+heap_k = (size + 0xffff) >> 16                       # 64KB units reserved
+# --- patch ELF ---
+d = bytearray(open(IN, 'rb').read())
+def va2off(va): return va - 0x100000 + 0x80
+def rd(va): return struct.unpack_from('<I', d, va2off(va))[0]
+def wr(va, w): struct.pack_into('<I', d, va2off(va), w)
+def jal(t): return 0x0c000000 | ((t >> 2) & 0x3ffffff)
+# heap shift: 0x103fec 'lui v1,0' -> 'lui v1,K'  (heap size = top - 0x855f80 - (K<<16 | 0x4000))
+assert rd(0x103fec) & 0xffff0000 == 0x3c030000, hex(rd(0x103fec))
+wr(0x103fec, 0x3c030000 | heap_k)
+HOOKS = [(0x38eeac, 0x1f5840, 'hook_input_update'),
+         (0x38f00c, 0x212e90, 'hook_end_scene'),
+         (0x38f140, 0x212e90, 'hook_end_scene'),
+         (0x1f3cec, 0x1f2f80, 'hook_read_port'),     # input filter (H3) -> freecam on_pad_read
+         (0x2c7b38, 0x2cbe30, 'hook_race_cam'),      # race update (H4) -> fc_sim_dt / on_race_cam
+         (0x319274, 0x3141d0, 'hook_fall'),
+         (0x319290, 0x3141d0, 'hook_fall'),
+         ]
+for site, orig, name in HOOKS:
+    assert rd(site) == jal(orig), 'site %x has %08x, expected jal %x' % (site, rd(site), orig)
+    wr(site, jal(syms[name]))
+# append segment at end of file (aligned) and fill phdr[1]
+e_phoff = struct.unpack_from('<I', d, 0x1c)[0]
+off = (len(d) + 0x7f) & ~0x7f
+d += b'\0' * (off - len(d)) + binv
+ph1 = e_phoff + 32
+struct.pack_into('<8I', d, ph1, 1, off, SEG_VA, SEG_VA, size, size, 7, 0x10)
+open(OUT, 'wb').write(d)
+print('heap K=%d (base now %x), wrote %s (%d bytes)' % (heap_k, SEG_VA + (heap_k << 16), OUT, len(d)))
+for k in sorted(syms, key=syms.get): print('  %08x %s' % (syms[k], k))

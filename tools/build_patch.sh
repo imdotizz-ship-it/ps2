@@ -8,7 +8,8 @@ ISO08=$1; ISO4=$2; W=${3:-build}
 T=$(dirname "$0")
 TRACKS="BRNO CATALUN DOHA DONNING ESTORIL JEREZ MUGELLO PHILLIPI SACHSEN SEPANG VALENCIA"
 FOVS="60 65 70 75 80 85 90 95 100 105 110"
-python3 $T/ps2iso.py extract "$ISO08" $W/mgp08 BIKES.MIX DATA.MIX 'TRACKS/*.MIX'
+python3 $T/ps2iso.py extract "$ISO08" $W/mgp08 BIKES.MIX DATA.MIX SLUS_218.11 'TRACKS/*.MIX'
+python3 $T/hooks/build_hook.py $W/mgp08/SLUS_218.11 $W/hooks/SLUS_218.11   # needs clang + ld.lld (MIPS)
 python3 $T/ps2iso.py extract "$ISO4" $W/mgp4 SLUS_211.59 MOTOGP.DAT
 python3 $T/gp4dat.py extract $W/mgp4/SLUS_211.59 $W/mgp4/MOTOGP.DAT $W/mgp4_x
 python3 $T/bikes4to08.py build $W/mgp08/BIKES.MIX $W/mgp4_x $W/bikes
@@ -22,8 +23,10 @@ TR=""; for t in $TRACKS; do TR="$TR TRACKS/$t.MIX=$W/tracks/$t.MIX"; done
 OPT=""; SC="BIKES.MIX=$W/safetycar/BIKES.MIX"
 for f in $FOVS; do OPT="$OPT,$f:DATA.MIX=$W/data/fov$f/DATA.MIX"; SC="$SC,@$f:DATA.MIX=$W/data/sc$f/DATA.MIX"; done
 rm -f $T/../patcher/manifest.json $T/../patcher/part-*.patch
-python3 $T/isopatch.py make "$ISO08" $T/../patcher BIKES.MIX=$W/bikes/BIKES.MIX DATA.MIX=$W/data/fov70/DATA.MIX $TR \
+python3 $T/isopatch.py make "$ISO08" $T/../patcher SLUS_218.11=$W/hooks/SLUS_218.11 BIKES.MIX=$W/bikes/BIKES.MIX DATA.MIX=$W/data/fov70/DATA.MIX $TR \
   --name "MotoGP 08 + MotoGP 4.iso" \
+  --note "Câmera livre: segure L1+R1 na corrida. Analógico esquerdo anda, direito olha, R2/L2 sobe/desce, quadrado rápido, X devagar, direcional cima/baixo muda o FOV, triângulo congela/solta a corrida" \
+  --note "Quedas fatais: numa queda forte (acima de ~90 km/h) um piloto da IA pode morrer (1 em 3); a corrida recebe bandeira vermelha e para, e o START abre o menu para reiniciar" \
   --note "Motos do MotoGP 4 nas seis motos da MotoGP" \
   --note "Visual do MotoGP 4 em 11 pistas: Brno, Catalunya, Doha, Donington, Estoril, Jerez, Mugello, Phillip Island, Sachsenring, Sepang e Valência" \
   --note "Bots com o dobro de chance de cair e menos cuidado entre si" \

@@ -34,6 +34,8 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | Câmeras | Câmera de TV (alta, atrás da moto) no botão de trocar câmera; tremor da câmera acima de 180 km/h; efeito de velocidade da câmera começando em 100 km/h (era 148) |
 | FOV ajustável | Controle deslizante na página de instalação: 60° a 110° nas câmeras da corrida (70° é o original) |
 | Câmera livre do replay | A câmera Orbit do replay gira mais rápido, vai de baixo até em cima da moto e fica mais longe |
+| Câmera livre (L1+R1) | Na corrida, segure L1+R1 para soltar a câmera: analógico esquerdo anda, direito olha, R2/L2 sobe e desce, quadrado acelera, X vai devagar, direcional para cima/baixo muda o FOV (esquerda volta ao do jogo), triângulo congela ou solta a corrida; L1+R1 de novo devolve a câmera do jogo. Código novo no executável ([`tools/hooks`](tools/hooks)) |
+| Queda fatal e bandeira vermelha | Numa queda forte (acima de ~90 km/h) um piloto da CPU pode morrer (1 em 3): ele fica no chão, sai da corrida, a cena passa em câmera lenta e a corrida para com a bandeira vermelha na tela; START abre o menu para reiniciar ou sair |
 | Safety Car (experimental, opcional) | A BMW M6 Safety Car do MotoGP 4 como uma equipe e um piloto a mais, marcada na página de instalação |
 
 Nas pistas, colisão, traçado da IA, grid, câmeras de replay e cronometragem
@@ -54,7 +56,13 @@ preciso:
 - dar a cada material das pistas o seu próprio "efeito" do motor Selene (sem
   isso o asfalto saía azul-claro, da cor do céu).
 
-Ainda não testados no emulador: o Safety Car, cada uma das 11 pistas (só
+A câmera livre e a bandeira vermelha também foram testadas no PCSX2 (para
+testar a bandeira, uma versão de teste fazia qualquer queda ser fatal; no
+patch só bots em quedas fortes). O código usa só as instruções de ponto
+flutuante que o processador do PS2 tem (`c.olt.s`, `c.ole.s`, `c.eq.s`):
+o `c.lt.s` comum do MIPS é ignorado pelo PS2 e deixava a câmera travada.
+
+Ainda não testados no emulador: o Safety Car (trava no carregamento), cada uma das 11 pistas (só
 Losail e Jerez foram corridas) e o hardware real.
 
 ![Largada de cada pista convertida](docs/pistas-motogp4.jpg)
@@ -132,7 +140,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`941fde03f41cfa198ce30572f3fb091054dda024` com FOV 70 e sem Safety Car; as
+(`e46e4a15a64cf79ce0e0f40ff30d338ca7ea163b` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou
