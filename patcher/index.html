@@ -34,6 +34,7 @@ ul{padding-left:20px;margin:6px 0}
 <body>
 <main>
 <h1>MotoGP 08 + MotoGP 4</h1>
+<p class="note" id="ver">Versão da página: 2026-10-15</p>
 <p class="sub">Monta a ISO modificada a partir da sua ISO original, aqui mesmo no aparelho. A ISO não é enviada para lugar nenhum.</p>
 
 <div class="card">
@@ -110,6 +111,7 @@ async function fetchFirst(file, onProgress, bust) {
 async function loadManifest() {
   try {
     manifest = JSON.parse(await (await fetchFirst("manifest.json", null, true)).text());
+    $("ver").textContent = "Versão da página: 2026-10-15 · patch " + manifest.target.sha1.slice(0, 7) + " (" + mib(manifest.parts.reduce((a, p) => a + p.size, 0)) + ")";
     $("changes").innerHTML = "";
     for (const c of manifest.changes || []) {
       const li = document.createElement("li"); li.textContent = c; $("changes").appendChild(li);
