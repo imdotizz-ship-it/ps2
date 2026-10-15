@@ -16,7 +16,7 @@ CL = ['clang', '--target=mips64el-unknown-none-gnuabin32', '-march=mips3', '-mab
 EXTRA = os.environ.get('RFDEF', '').split()
 B = os.path.join(HERE, 'build'); os.makedirs(B, exist_ok=True); os.makedirs(os.path.dirname(OUT), exist_ok=True)
 def run(c): print(' '.join(c)); subprocess.check_call(c)
-SRCS = ['hook.S', 'user.c', 'freecam.c', 'redflag.c', 'insult.c', 'blur.c', 'ui.c', 'td.c', 'gore.c']
+SRCS = ['hook.S', 'user.c', 'freecam.c', 'redflag.c', 'insult.c', 'blur.c', 'ui.c', 'td.c', 'gore.c', 'gesture.c', 'sound.c']
 objs = []
 for src in SRCS:
     o = B + '/' + src.rsplit('.', 1)[0] + '.o'
@@ -78,7 +78,8 @@ HOOKS = [(0x38eeac, 0x1f5840, 'hook_input_update'),
          (0x2806f8, 0x2880f0, 'hook_ae_render'),
          (0x281630, 0x2880f0, 'hook_ae_render'),
          (0x4c57ac, 0x20ee80, 'hook_fov'),
-         (0x2f1a90, 0x2f6060, 'hook_bike_parts'),     # crash damage: hide broken windscreens           # FOV menu option -> race camera
+         (0x2f1a90, 0x2f6060, 'hook_bike_parts'),
+         (0x33f2ec, 0x348a70, 'hook_fall_mode'),      # fallen rider gets up and gestures     # crash damage: hide broken windscreens           # FOV menu option -> race camera
          ]
 for site, orig, name in HOOKS:
     assert rd(site) == jal(orig), 'site %x has %08x, expected jal %x' % (site, rd(site), orig)

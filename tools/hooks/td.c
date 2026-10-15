@@ -101,6 +101,9 @@ static u8 *nearest_bot(u8 *anyctl) {
 }
 void td_tick(u32 buttons, u8 *last_bot_ctl) {
     u32 sel = buttons & 0x0001;
+#ifdef SOAK
+    { u8 *pv = player_veh(); if (pv && !TD.active) *(u16 *)(pv + 0x12c) = (*(u16 *)(pv + 0x12c) & ~0x1) | 0x2; }  /* soak: AI drives the player */
+#endif
 #ifdef TD_DEBUG
     if (sel && !TD.prevsel && last_bot_ctl) td_fight(nearest_bot(last_bot_ctl));
 #else

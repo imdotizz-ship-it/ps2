@@ -186,8 +186,11 @@ hook_fall:
         swc1 $f12, 0xd8($sp)
         swc1 $f13, 0xdc($sp)
         swc1 $f14, 0xe0($sp)
-        jal  bb_pre                 # void bb_pre(u8 *ctl, int which)
+        lwc1 $f14, 0xdc($sp)        # n32: float args 3,4 -> f14,f15 (speed diff, side speed)
+        lwc1 $f15, 0xe0($sp)
+        jal  bb_pre                 # int bb_pre(u8 *ctl, int which, float diff, float side)
         addiu $5, $0, \which
+        sw   $2, 0xe4($sp)          # 1 = make this contact a crash (takedown)
         lw   $4, 0xc4($sp)
         lw   $5, 0xc8($sp)
         lw   $6, 0xcc($sp)
@@ -195,8 +198,17 @@ hook_fall:
         lw   $8, 0xd4($sp)
         lwc1 $f12, 0xd8($sp)
         lwc1 $f13, 0xdc($sp)
-        jal  0x319020
         lwc1 $f14, 0xe0($sp)
+        lw   $2, 0xe4($sp)
+        beqz $2, 1f
+        nop
+        lui  $2, 0xbf80             # cos = -1.0: head-on/over-threshold branch
+        mtc1 $2, $f12
+        lui  $2, 0x42c8             # 100 m/s speed difference and side speed
+        mtc1 $2, $f13
+        mtc1 $2, $f14
+1:      jal  0x319020
+        nop
         lw   $4, 0xc4($sp)
         jal  bb_post                # void bb_post(u8 *ctl, int which)
         addiu $5, $0, \which
@@ -280,3 +292,34 @@ hook_bike_parts:
         RESTALL
         jr   $ra
         addiu $sp, $sp, 0x100
+
+# H9: replaces 'jal 0x348a70' (RiderAnim fall-mode update, a0 = R, f12 = dt, f13) at 0x33f2ec.
+        .globl hook_fall_mode
+hook_fall_mode:
+        SAVEALL
+        sw   $a0, 0xc4($sp)
+        swc1 $f12, 0xc0($sp)
+        jal  0x348a70
+        nop
+        lw   $a0, 0xc4($sp)
+        jal  fall_gesture           # void fall_gesture(u8 *R, float dt)   (n32: dt in $f13)
+        lwc1 $f13, 0xc0($sp)
+        RESTALL
+        jr   $ra
+        addiu $sp, $sp, 0x100
+
+# RiderAnim_Play(R, mode, ids, w, flags, step): n32 passes step (6th arg) in $f17, the game wants $f12
+        .globl game_anim_play
+game_anim_play:
+        mov.s $f12, $f17
+        j    0x343ae0
+        nop
+        .globl snd_set_volume          # void snd_set_volume(u8 *voice, float vol)  n32: a0, f13
+snd_set_volume:
+        mov.s $f12, $f13
+        j     0x436390                 # Voice::SetVolume(voice, f12 vol, a1 cancelFade)
+        addiu $a1, $zero, 1
+        .globl snd_set_pan             # void snd_set_pan(u8 *voice, float pan)     n32: a0, f13
+snd_set_pan:
+        j     0x436950                 # Voice2D::SetPan(voice, f12 pan)
+        mov.s $f12, $f13

@@ -143,7 +143,9 @@ static void say(u8 *speaker, u8 *target, int taunt) {
     if (num) { o = cat(INS.who, o, sizeof INS.who, "#"); o = catnum(INS.who, o, sizeof INS.who, num); o = cat(INS.who, o, sizeof INS.who, " "); }
     o = cat(INS.who, o, sizeof INS.who, sname);
     cat(INS.who, o, sizeof INS.who, ":");
-    const char *f = taunt ? TAUNTS[rnd() % NTAUNTS] : LINES[rnd() % NLINES];
+    int li = (int)(rnd() % NLINES);
+    const char *f = taunt ? TAUNTS[rnd() % NTAUNTS] : LINES[li];
+    { extern void voice_play(int); if (!taunt) voice_play(li); }
     fmt1(INS.line, sizeof INS.line, f, tname);
     INS.show = SHOW_FR; INS.age = 0; INS.shown++;
 }
@@ -152,11 +154,47 @@ static void say(u8 *speaker, u8 *target, int taunt) {
 static u8 *last_bot;
 u8 *ins_last_bot(void) { return last_bot; }
 extern void td_start(u8 *veh);
-void bb_pre(u8 *ctl, int which) {
+static int bb_flt(float a, float b) {
+    int r;
+    __asm__ volatile(".set push\n\t.set noreorder\n\t"
+                     "c.olt.s %1, %2\n\tnop\n\tli %0, 1\n\tbc1t 1f\n\tnop\n\tli %0, 0\n1:\n\t.set pop"
+                     : "=&r"(r) : "f"(a), "f"(b));
+    return r;
+}
+#ifndef TK_MIN
+#define TK_MIN 4.0f             /* m/s of speed difference or side speed for a "real" hit */
+#endif
+#ifndef TK_CHANCE
+#define TK_CHANCE 6             /* 1 in TK_CHANCE real hits knocks the slower rider down */
+#endif
+#define TK_COOLDOWN 360         /* race updates between forced crashes */
+struct tkstate { u32 magic, hist[6], hits, forced, cool; float maxd, maxs; };
+__attribute__((section(".data"))) struct tkstate TK = { 0x4b444b54 /* 'TKDK' */ };
+static u8 *tk_victim;
+static float fabs_(float x) { return bb_flt(x, 0.0f) ? -x : x; }
+/* called before each of the two 0x319020 calls of a bike-bike contact; returns 1 to force the fall */
+int bb_pre(u8 *ctl, int which, float diff, float side) {
     INS.cur = ctl;
     if (!is_human(ctl)) last_bot = ctl;
     if (which == 1) { INS.a = ctl; INS.a_fell = 0; INS.b = 0; INS.b_fell = 0; }
     else            { INS.b = ctl; INS.b_fell = 0; }
+    float d = fabs_(diff), sd = fabs_(side), m = bb_flt(d, sd) ? sd : d;
+    if (bb_flt(TK.maxd, d)) TK.maxd = d;
+    if (bb_flt(TK.maxs, sd)) TK.maxs = sd;
+    static const float B[6] = { 0.5f, 1, 2, 4, 8, 16 };
+    for (int k = 0; k < 6; k++) if (bb_flt(B[k], m)) TK.hist[k]++;
+    if (which == 1) {
+        tk_victim = 0;
+        if (TK.cool || !bb_flt(TK_MIN, m)) return 0;
+        TK.hits++;
+        if ((rnd() % TK_CHANCE) != 0) return 0;
+        TK.cool = TK_COOLDOWN; TK.forced++;
+        if (bb_flt(diff, 0.0f)) return 1;            /* A is the slower one: A goes down now */
+        tk_victim = (u8 *)2;                         /* B is the slower one: force B's call */
+        return 0;
+    }
+    if (tk_victim == (u8 *)2) { tk_victim = 0; return 1; }
+    return 0;
 }
 void bb_post(u8 *ctl, int which) {
     (void)ctl;
@@ -169,6 +207,7 @@ void bb_post(u8 *ctl, int which) {
     INS.a = INS.b = 0;
     if (!victim) return;                         /* nobody or both fell */
     INS.contact_falls++;
+    { extern void gesture_mark(u8 *); if (!is_human(victim)) gesture_mark(*(u8 **)(victim + 0x428)); }
     if (is_human(attacker)) {                    /* player knocked a bot down: TAKEDOWN */
         INS.takedowns++;
         INS.td_show = SHOW_FR; INS.td_slow = TD_SLOW_FR;
@@ -205,8 +244,9 @@ float ins_sim_dt(float dt) {
     return dt;
 }
 void ins_tick(void) {               /* per pad read: drop state when not racing */
+    if (TK.cool) TK.cool--;
     INS.seed += 0x6d2b79f5u;
-    if (INS.alive && --INS.alive == 0) { extern void gore_reset(void); gore_reset(); INS.show = INS.td_show = INS.td_slow = 0; INS.cur = INS.a = INS.b = 0; }
+    if (INS.alive && --INS.alive == 0) { extern void gore_reset(void), gesture_reset(void); gore_reset(); gesture_reset(); INS.show = INS.td_show = INS.td_slow = 0; INS.cur = INS.a = INS.b = 0; }
 }
 
 static int ins_flt(float a, float b) {   /* a < b, R5900-safe */

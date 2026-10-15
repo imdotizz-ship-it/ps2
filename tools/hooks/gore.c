@@ -68,6 +68,9 @@ void gore_on_fall(u8 *veh, float speed, int fatal) {
     float s = speed; if (flt(30.0f, s)) s = 30.0f;
     int n = GORE_DROPS + (fatal ? 30 : 0);
     GORE.spawns++;
+#ifdef GEST_DEBUG
+    { extern void gesture_mark(u8 *); gesture_mark(veh); }
+#endif
     if (flt(12.0f, speed) && nbroken < 24) { int k; for (k = 0; k < nbroken && BROKEN[k] != veh; k++); if (k == nbroken) BROKEN[nbroken++] = veh; }
     for (int e = 0; e < 4; e++) if (!EM[e].veh || EM[e].veh == veh) { EM[e].veh = veh; EM[e].t = 0; EM[e].acc = 0; EM[e].speed = s; break; }
     for (int i = 0; i < n; i++) {

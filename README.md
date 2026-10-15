@@ -38,9 +38,10 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | FOV dentro do jogo | Opções > Video Setup > *Field of view*: -5° a +40° em passos de 5°, somado ao FOV escolhido na instalação; fica salvo no memory card (ocupa a opção "Standings", que o jogo não usa) |
 | Motion blur | Acima de 90 km/h o quadro anterior é misturado ao atual, cada vez mais forte até 270 km/h (75%) |
 | Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele e gira ao redor em câmera lenta por uns 4 s enquanto o piloto automático do jogo (AUTODRIVE) guia a sua moto; depois volta para você |
-| Xingamentos | Quem cai depois de um toque xinga o rival num painel no estilo do HUD (fonte do próprio jogo, com acentos); se você cai, o bot zomba de você |
+| Xingamentos | Quem cai depois de um toque xinga o rival num painel no estilo do HUD (fonte do próprio jogo, com acentos); se você cai, o bot zomba de você. Cada xingamento tem voz em português (sintetizada) |
 | Sangue e destroços | Nas quedas sai um jato de sangue do piloto que deixa manchas pelo caminho, e peças da moto voam; numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida |
 | Briga | Às vezes, quando um bot derruba outro, a câmera corta para ele sacudindo o punho (gesto de raiva do próprio jogo, `rabbiaDX`) em câmera lenta, com o xingamento na tela |
+| Torcida mais alta | O som da torcida e do ambiente ficou cerca de 4 dB mais alto (limitador suave nas gravações, sem o corte de -2 dB do banco e com o volume de ambiente em 1.0); as arquibancadas continuam onde estavam ([`tools/audio`](tools/audio)) |
 | Safety Car (experimental, opcional) | A BMW M6 Safety Car do MotoGP 4 como uma equipe e um piloto a mais, marcada na página de instalação |
 
 **Pistas do MotoGP 4 removidas do patch.** Nelas, colisão, traçado da IA, grid, câmeras de replay e cronometragem
@@ -130,11 +131,8 @@ github.com.
 - **Motion blur forte.** O PS2 não tem desfoque de movimento nas câmeras de
   corrida; o que existe é o efeito de velocidade da câmera, que agora começa
   mais cedo, e o tremor em alta velocidade.
-- **Sistema de takedown do Burnout** (câmera lenta, pontuação). Os toques
-  derrubam mais, mas sem a câmera e as regras do Burnout.
-- **Pilotos se xingando com caixas de diálogo e áudio.** Os pilotos já fazem
-  gestos de raiva (animações `rabbia`) e têm rivalidades, que agora pioram
-  mais rápido; texto e voz novos não.
+- **Pontuação de takedown do Burnout.** A câmera lenta e as quedas forçadas
+  existem, mas não há placar de takedowns.
 - **Ragdoll nas quedas e deformação estilo Burnout.** As quedas do 08 são
   animações prontas, e os modelos não deformam.
 - **Física de carro para o Safety Car.** O motor só simula motos.
@@ -147,7 +145,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`a431b481f92925f82b642907a65e64d6098f5cf9` com FOV 70 e sem Safety Car; as
+(`b8d9a9e6995dc137992452feffdacdbe13b10e2b` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou
