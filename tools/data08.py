@@ -53,8 +53,8 @@ AI_CHANGES = {
 }
 
 DAMAGE = {                                  # GameConfig/Damage (and its per-mode copies)
-    "BikeBikeCollisionDiffSpeed": "55.",    # 92.
-    "BikeBikeCollisionSideSpeed": "28.",    # 48.
+    "BikeBikeCollisionDiffSpeed": "25.",    # 92.
+    "BikeBikeCollisionSideSpeed": "12.",    # 48.
     "BikeBikeCollisionImpulse": "2.5",      # 1.
     "BikeVsFallenBikeSpeedThreshold": "12.",  # 20.
 }
