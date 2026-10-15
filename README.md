@@ -13,10 +13,11 @@ câmera de TV a mais.
 1. Tenha a ISO original **MotoGP 08 (USA)** no aparelho (no iPhone, no app
    Arquivos: no app do Google Drive, toque nos três pontos da ISO > Abrir em >
    Salvar em Arquivos).
-2. Abra no navegador:
-   **https://raw.githack.com/imdotizz-ship-it/ps2/claude/ps2-game-mods-drastic-3mwmob/patcher/index.html**
+2. Abra no navegador o link da versão atual (fixo no commit, então nenhum cache
+   entrega uma página ou um patch antigo):
+   **https://rawcdn.githack.com/imdotizz-ship-it/ps2/74e900e87d50e947c6b7d00f05af6a32cb18f884/patcher/index.html**
 3. Escolha a ISO, ajuste o FOV se quiser, toque em **Criar ISO** e depois em
-   **Salvar**. A página baixa só o patch (51 MB); a ISO é montada no próprio
+   **Salvar**. A página baixa só o patch (3,6 MB); a ISO é montada no próprio
    aparelho e não é enviada para lugar nenhum.
 
 No iPhone precisa do iOS 16.4 ou mais novo, e a tela deve ficar ligada até
