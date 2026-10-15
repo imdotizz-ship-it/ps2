@@ -320,6 +320,11 @@ piloto e o veículo que o usam.
 
 ## Skills instaladas
 
+- `.claude/skills/ps2-recomp-Agent-SKILL`: skill do
+  [ps2-recomp-Agent-SKILL](https://github.com/hkmodd/ps2-recomp-Agent-SKILL)
+  (licença MIT, commit `a1cafc2`). É um guia para engenharia reversa de jogos de
+  PS2 e para a recompilação estática com o PS2Recomp, com referências do
+  hardware (EE/R5900, VIF, GIF, GS, registradores, syscalls), PDFs e diagramas.
 - `.claude/skills/reverse-engineer-anything`: skill do
   [REA](https://github.com/morluto/rea) (licença MIT, commit `ca2d15b`). Ela
   orienta a análise de binários e depende do servidor MCP do REA e do Ghidra
