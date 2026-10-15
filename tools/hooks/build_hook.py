@@ -16,14 +16,12 @@ CL = ['clang', '--target=mips64el-unknown-none-gnuabin32', '-march=mips3', '-mab
 EXTRA = os.environ.get('RFDEF', '').split()
 B = os.path.join(HERE, 'build'); os.makedirs(B, exist_ok=True); os.makedirs(os.path.dirname(OUT), exist_ok=True)
 def run(c): print(' '.join(c)); subprocess.check_call(c)
-run(CL + ['-c', os.path.join(HERE, 'hook.S'), '-o', B + '/hook.o'])
-run(CL + ['-c', os.path.join(HERE, 'user.c'), '-o', B + '/user.o'])
-run(CL + ['-c', os.path.join(HERE, 'freecam.c'), '-o', B + '/freecam.o'])
-run(CL + EXTRA + ['-c', os.path.join(HERE, 'redflag.c'), '-o', B + '/redflag.o'])
-run(CL + EXTRA + ['-c', os.path.join(HERE, 'insult.c'), '-o', B + '/insult.o'])
-run(CL + EXTRA + ['-c', os.path.join(HERE, 'blur.c'), '-o', B + '/blur.o'])
-run(['ld.lld', '-m', 'elf32ltsmipn32', '-T', os.path.join(HERE, 'link.ld'), '--no-check-sections', '-o', B + '/payload.elf',
-     B + '/hook.o', B + '/user.o', B + '/freecam.o', B + '/redflag.o', B + '/insult.o', B + '/blur.o'])
+SRCS = ['hook.S', 'user.c', 'freecam.c', 'redflag.c', 'insult.c', 'blur.c', 'ui.c', 'td.c', 'gore.c']
+objs = []
+for src in SRCS:
+    o = B + '/' + src.rsplit('.', 1)[0] + '.o'
+    run(CL + (EXTRA if src.endswith('.c') else []) + ['-c', os.path.join(HERE, src), '-o', o]); objs.append(o)
+run(['ld.lld', '-m', 'elf32ltsmipn32', '-T', os.path.join(HERE, 'link.ld'), '--no-check-sections', '-o', B + '/payload.elf'] + objs)
 run(['llvm-objcopy', '-O', 'binary', B + '/payload.elf', B + '/payload.bin'])
 syms = {}
 for l in subprocess.check_output(['llvm-nm', B + '/payload.elf']).decode().splitlines():
@@ -42,7 +40,7 @@ size = (max(len(binv), end - SEG_VA) + 0x7f) & ~0x7f
 binv = binv + b'\0' * (size - len(binv))
 # --- forbidden-opcode check (R5900 lacks these) ---
 md = capstone.Cs(capstone.CS_ARCH_MIPS, capstone.CS_MODE_MIPS64 + capstone.CS_MODE_LITTLE_ENDIAN)
-bad = ('trunc.', 'c.lt.', 'c.le.', 'c.eq.', 'c.nge', 'round.', 'ceil.', 'floor.', '.d ', 'c.un', 'c.ueq', 'c.ult', 'c.ule', 'c.ngt', 'c.nge', 'c.ngl', 'c.seq', 'c.ngle', 'c.sf',
+bad = ('sqrt.', 'rsqrt.', 'trunc.', 'c.lt.', 'c.le.', 'c.eq.', 'c.nge', 'round.', 'ceil.', 'floor.', '.d ', 'c.un', 'c.ueq', 'c.ult', 'c.ule', 'c.ngt', 'c.nge', 'c.ngl', 'c.seq', 'c.ngle', 'c.sf',
        'dmult', 'ddiv', 'll ', 'sc ', 'lld', 'scd', 'ldc1', 'sdc1', 'cvt.d', 'cvt.l', 'cvt.s.l', 'dmfc1', 'dmtc1', 'madd.s', 'msub.s')
 text_end = syms.get('__text_end', SEG_VA + size)
 probs = []

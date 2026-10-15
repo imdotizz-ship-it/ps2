@@ -9,7 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import ztx
 SRC = sys.argv[1] if len(sys.argv) > 1 else '/home/user/extracted/mgp08/MENU.MIX'
 OUT = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, 'out', 'MENU.MIX')
-MIX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'mix.py')
+MIX = '/home/user/ps2/tools/mix.py'
 N = int(re.search(r'^FOV_NVAL = (\d+)', open(os.path.join(HERE, 'hook.S')).read(), re.M).group(1))
 SLOT = 10
 H_LABEL, H_DESC, H_FOV = ztx.khash('OPTIONS_VIDEO'), ztx.khash('OPTIONS_VIDEO_DESC'), ztx.khash('Horiz_FOV')

@@ -79,6 +79,8 @@ static float sin_(float x) {
     return x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42 * (1 - x2 / 72))));
 }
 static float cos_(float x) { return sin_(x + PI / 2); }
+float fc_sin(float x) { return sin_(x); }
+float fc_cos(float x) { return cos_(x); }
 static float atan_(float z) {          /* |z| <= 1 */
     float z2 = z * z;
     return z * (0.9998660f + z2 * (-0.3302995f + z2 * (0.1801410f + z2 * (-0.0851330f + z2 * 0.0208351f))));
@@ -89,7 +91,12 @@ static float atan2_(float y, float x) {
     if (!flt(ax, ay)) { float a = atan_(y / x); return fgt(x, 0.f) ? a : (flt(y, 0.f) ? a - PI : a + PI); }
     float a = atan_(x / y); return fgt(y, 0.f) ? PI / 2 - a : -PI / 2 - a;
 }
-static float sqrt_(float v) { float r; __asm__("sqrt.s %0,%1" : "=f"(r) : "f"(v)); return r; }
+static float sqrt_(float v) {         /* R5900 SQRT.S fd, ft: source in the ft field (MIPS uses fs) */
+    register float in __asm__("$f1") = v;
+    register float out __asm__("$f0");
+    __asm__ volatile(".word 0x46010004" : "=f"(out) : "f"(in));
+    return out;
+}
 static int axis(u8 v) { int a = (int)v - 128; if (a > -DEAD && a < DEAD) return 0; return a; }
 int fc_ftoi(float f) { int i; __asm__("cvt.w.s %1,%1\n\tmfc1 %0,%1" : "=r"(i), "+f"(f)); return i; }
 
@@ -127,7 +134,8 @@ void on_pad_read(u8 *pad, int port) {
 /* H4 pre-step: dt fed to RaceBase::Update. 0 = no fixed sim steps (bikes, AI, timers, game cam frozen) */
 extern float rf_sim_dt(float dt);
 extern float ins_sim_dt(float dt);
-float fc_sim_dt(float dt) { dt = ins_sim_dt(rf_sim_dt(dt)); return (FC.active && FC.freeze) ? 0.0f : dt; }
+extern float td_sim_dt(float); extern int td_cam(void *); extern void td_tick(u32, u8 *); extern u8 *ins_last_bot(void);
+float fc_sim_dt(float dt) { td_tick(FC.buttons, ins_last_bot()); dt = td_sim_dt(ins_sim_dt(rf_sim_dt(dt))); if (FC.active && FC.freeze) dt = 0.0f; { extern void gore_update(float); gore_update(dt); } return dt; }
 
 /* H4 post-step: game camera already written for this frame; render happens after App::GameUpdate
    reaches BeginScene (0x38ef50), so whatever we write here is what gets drawn. */
@@ -141,6 +149,7 @@ void on_race_cam(u8 *race, float dt) {
     u8 *frm = *(u8 **)(cml + 0x08);
     if (!cam || !frm || cam[0] != 4) return;       /* RwCamera object type 4 */
     FC.alive = 30;
+    if (!FC.active && td_cam(cml)) return;
     if (!FC.active) {
         if (FC.frames) { *(u8 *)(rc + 0xe8) = 1; FC.frames = 0; }   /* give the game its FOV back */
         return;

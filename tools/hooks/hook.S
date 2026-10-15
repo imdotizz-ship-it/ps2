@@ -254,3 +254,12 @@ hook_fov:
         add.s $f13, $f13, $f0
 1:      j     0x20ee80
         nop
+
+        .globl game_show
+game_show:
+        j    0x4f8aa0
+        nop
+        .globl game_fall_evt
+game_fall_evt:
+        j    0x414bd0
+        nop

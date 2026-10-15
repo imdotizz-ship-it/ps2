@@ -22,9 +22,11 @@ typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; 
 #define INS_ROW 19
 #endif
 #define BOX_W      44          /* inner width of the box */
+#ifndef SHOW_FR
 #define SHOW_FR    180         /* ~3 s of draws */
+#endif
 #define COOLDOWN   60          /* draws before a new message may replace the current one */
-#define TD_SLOW_FR 70          /* race updates of slow motion after a takedown */
+#define TD_SLOW_FR 0           /* slow motion now comes from the takedown cam (td.c) */
 #define TD_SCALE   0.3f
 
 extern int game_printf(void *ctx, int col, int row, const char *fmt, ...);
@@ -43,14 +45,14 @@ struct insstate {
 __attribute__((section(".data"))) struct insstate INS = { 0x4c534e49, 0x9e3779b9 };
 
 static const char *const LINES[] = {
-    "Voce me derrubou, seu maluco!",
-    "%s, onde voce tirou a carteira?!",
-    "Isso nao e boliche, %s!",
-    "Vou te pegar na proxima volta, %s!",
+    "Você me derrubou, seu maluco!",
+    "%s, onde você tirou a carteira?!",
+    "Isso não é boliche, %s!",
+    "Vou te pegar na próxima volta, %s!",
     "Freia essa moto, seu barbeiro!",
     "%s, aprende a pilotar!",
-    "Ta cego, %s?! Era a minha linha!",
-    "Que lambanca! Vou reclamar na direcao!",
+    "Tá cego, %s?! Era a minha linha!",
+    "Que lambança! Vou reclamar na direção!",
     "Seu doido! Quase me matou!",
     "Volta pro kart, %s!",
 };
@@ -58,9 +60,9 @@ static const char *const LINES[] = {
 /* the player (human) was knocked down by a bot: the bot mocks him */
 static const char *const TAUNTS[] = {
     "Sai da frente, %s!",
-    "Desculpa, %s... mentira, nao!",
-    "Isso e MotoGP, %s, nao passeio!",
-    "Chao e lugar de piloto lento!",
+    "Desculpa, %s... mentira, não!",
+    "Isso é MotoGP, %s, não passeio!",
+    "Chão é lugar de piloto lento!",
 };
 #define NTAUNTS (sizeof(TAUNTS) / sizeof(TAUNTS[0]))
 
@@ -138,7 +140,7 @@ static void say(u8 *speaker, u8 *target, int taunt) {
     int num = pilot_num(speaker, pilot_key(speaker));
     int o = 0;
     INS.who[0] = 0;
-    if (num) { o = catnum(INS.who, o, sizeof INS.who, num); o = cat(INS.who, o, sizeof INS.who, " - "); }
+    if (num) { o = cat(INS.who, o, sizeof INS.who, "#"); o = catnum(INS.who, o, sizeof INS.who, num); o = cat(INS.who, o, sizeof INS.who, " "); }
     o = cat(INS.who, o, sizeof INS.who, sname);
     cat(INS.who, o, sizeof INS.who, ":");
     const char *f = taunt ? TAUNTS[rnd() % NTAUNTS] : LINES[rnd() % NLINES];
@@ -147,8 +149,12 @@ static void say(u8 *speaker, u8 *target, int taunt) {
 }
 
 /* --- called from hook.S around the two 0x319020 calls of 0x309500 --- */
+static u8 *last_bot;
+u8 *ins_last_bot(void) { return last_bot; }
+extern void td_start(u8 *veh);
 void bb_pre(u8 *ctl, int which) {
     INS.cur = ctl;
+    if (!is_human(ctl)) last_bot = ctl;
     if (which == 1) { INS.a = ctl; INS.a_fell = 0; INS.b = 0; INS.b_fell = 0; }
     else            { INS.b = ctl; INS.b_fell = 0; }
 }
@@ -166,6 +172,7 @@ void bb_post(u8 *ctl, int which) {
     if (is_human(attacker)) {                    /* player knocked a bot down: TAKEDOWN */
         INS.takedowns++;
         INS.td_show = SHOW_FR; INS.td_slow = TD_SLOW_FR;
+        td_start(*(u8 **)(victim + 0x428));
     }
     if (!is_human(victim)) say(victim, attacker, 0);     /* bot insults whoever hit him */
     else say(attacker, victim, 1);                       /* bot mocks the fallen player */
@@ -198,29 +205,45 @@ void ins_tick(void) {               /* per pad read: drop state when not racing 
     if (INS.alive && --INS.alive == 0) { INS.show = INS.td_show = INS.td_slow = 0; INS.cur = INS.a = INS.b = 0; }
 }
 
-static void boxline(void *ctx, int row, const char *s, char edge, char fill) {
-    char b[BOX_W + 4]; int o = 0;
-    edge = ' ';                                  /* the race font has no + or | */
-    b[o++] = edge;
-    if (fill != ' ') { while (o < BOX_W + 1) b[o++] = fill; }
-    else { b[o++] = ' '; while (*s && o < BOX_W) b[o++] = *s++; while (o < BOX_W + 1) b[o++] = ' '; }
-    b[o++] = edge; b[o] = 0;
-    game_printf(ctx, INS_COL, row, "%s", b);
+static int ins_flt(float a, float b) {   /* a < b, R5900-safe */
+    int r;
+    __asm__ volatile(".set push\n\t.set noreorder\n\t"
+                     "c.olt.s %1, %2\n\tnop\n\tli %0, 1\n\tbc1t 1f\n\tnop\n\tli %0, 0\n1:\n\t.set pop"
+                     : "=&r"(r) : "f"(a), "f"(b));
+    return r;
 }
-
-void ins_draw(void *ctx) {
+extern void ui_panel(float, float, float, float, const u8 *, float);
+extern void ui_text_sh(float, float, const char *, float, const u8 *, float);
+extern float ui_text_width(const char *, float);
+/* pass 0: panels, pass 1: text; counters advance once per frame (pass 1) */
+void ins_draw(int pass) {
+    static const u8 acc[4] = { 255, 170, 0, 255 }, red[4] = { 230, 30, 30, 255 },
+                    white[4] = { 255, 255, 255, 255 }, name[4] = { 255, 205, 60, 255 };
     if (!INS.alive) return;
     if (INS.show) {
-        INS.show--; INS.age++;
-        boxline(ctx, INS_ROW, "", '+', '-');
-        boxline(ctx, INS_ROW + 1, INS.who, '|', ' ');
-        boxline(ctx, INS_ROW + 2, INS.line, '|', ' ');
-        boxline(ctx, INS_ROW + 3, "", '+', '-');
+        float a = INS.age < 10 ? INS.age / 10.0f : (INS.show < 20 ? INS.show / 20.0f : 1.0f);
+        float sc = 0.62f, w = ui_text_width(INS.line, sc);
+        if (ins_flt(400.0f, w)) { sc = 0.62f * 400 / w; w = 400; }
+        float x0 = 24, y0 = 318, x1 = x0 + 30 + (ins_flt(220.0f, w) ? w : 220), y1 = 378;
+        if (pass == 0) ui_panel(x0, y0, x1, y1, acc, a);
+        else {
+            ui_text_sh(x0 + 18, y0 + 8, INS.who, 0.66f, name, a);
+            ui_text_sh(x0 + 18, y0 + 32, INS.line, sc, white, a);
+            INS.show--; INS.age++;
+        }
     }
     if (INS.td_show) {
-        INS.td_show--;
-        if (INS.td_show > SHOW_FR - 90 || ((INS.td_show >> 3) & 1))
-            game_printf(ctx, 16, 5, "*** TAKEDOWN! ***");
-        game_printf(ctx, 16, 6, "Takedowns: %d", (int)INS.takedowns);
+        float a = INS.td_show < 30 ? INS.td_show / 30.0f : 1.0f;
+        float big = INS.td_show > SHOW_FR - 12 ? 1.9f - (SHOW_FR - INS.td_show) * 0.04f : 1.45f;  /* punch-in */
+        const char *t = "TAKEDOWN!";
+        float w = ui_text_width(t, big);
+        if (pass == 1) {
+            char b[24]; int o = 0; const char *p0 = "Takedowns: "; while (*p0) b[o++] = *p0++;
+            int n = (int)INS.takedowns, k2 = 0; char d[8]; if (!n) d[k2++] = '0'; while (n) { d[k2++] = '0' + n % 10; n /= 10; }
+            while (k2) b[o++] = d[--k2]; b[o] = 0;
+            ui_text_sh(320 - w / 2, 120, t, big, red, a);
+            ui_text_sh(320 - ui_text_width(b, 0.7f) / 2, 120 + 29 * big + 4, b, 0.7f, white, a);
+            INS.td_show--;
+        }
     }
 }

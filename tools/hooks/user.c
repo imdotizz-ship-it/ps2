@@ -39,18 +39,33 @@ struct fcview { u32 magic, active, hold, latched, buttons, prev, alive, freeze; 
 extern struct fcview FC;
 extern int fc_ftoi(float f);
 
-extern void rf_draw(void *ctx);
-extern void ins_draw(void *ctx);
+extern void rf_draw(int pass);
+extern void ins_draw(int pass);
 extern void blur_tick(void);
+extern int ui_begin(void);
+extern void ui_end_solid(void), ui_end_text(void);
+extern void ui_panel(float, float, float, float, const u8 *, float);
+extern void ui_text_sh(float, float, const char *, float, const u8 *, float);
+static void fc_draw(int pass) {
+    static const u8 blue[4] = { 40, 150, 255, 255 }, white[4] = { 255, 255, 255, 255 }, grey[4] = { 190, 195, 205, 255 };
+    if (!(FC.active && FC.alive)) return;
+    if (pass == 0) { ui_panel(20, 20, 250, 70, blue, 1.0f); return; }
+    char b[48]; int o = 0, n = fc_ftoi(FC.fov), k = 0; char d[8];
+    const char *p = "FOV "; while (*p) b[o++] = *p++;
+    while (n && k < 7) { d[k++] = '0' + n % 10; n /= 10; } while (k) b[o++] = d[--k];
+    p = FC.freeze ? "  ·  pausado" : "  ·  rodando"; while (*p) b[o++] = *p++; b[o] = 0;
+    ui_text_sh(36, 26, "CÂMERA LIVRE", 0.66f, white, 1.0f);
+    ui_text_sh(36, 48, b, 0.5f, grey, 1.0f);
+}
 void on_draw(void *ctx) {
+    (void)ctx;
     MB.draws++;
-    rf_draw(ctx);
-    ins_draw(ctx);
     blur_tick();
-    if (FC.active && FC.alive)
-    {   /* <= 8 int args: n32 and EABI agree on $4..$11, avoid stack-passed varargs */
-        game_printf(ctx, 2, 2, "FREECAM pos %d %d %d", fc_ftoi(FC.px), fc_ftoi(FC.py), fc_ftoi(FC.pz));
-        game_printf(ctx, 2, 3, "fov %d %s", fc_ftoi(FC.fov), FC.freeze ? "frozen (TRI)" : "running (TRI)");
+    if (!ui_begin()) return;
+    { extern void gore_draw(void); gore_draw(); ui_end_solid(); }
+    for (int pass = 0; pass < 2; pass++) {
+        rf_draw(pass); ins_draw(pass); fc_draw(pass);
+        if (pass == 0) ui_end_solid(); else ui_end_text();
     }
 }
 

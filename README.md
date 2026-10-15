@@ -27,7 +27,6 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | Mod | Detalhes |
 | --- | -------- |
 | Motos do MotoGP 4 | As seis motos da MotoGP com carenagem, quadro, motor, escapamento, para-brisa e pinturas do MotoGP 4 ([detalhes](#motos-do-motogp-4-no-motogp-08)) |
-| Pistas do MotoGP 4 | Brno, Catalunya, Doha, Donington, Estoril, Jerez, Mugello, Phillip Island, Sachsenring, Sepang e Valência com o visual do MotoGP 4 ([detalhes](docs/formats/pistas.md)) |
 | Bots que caem mais | Cada piloto da CPU tem o dobro da chance de cair (na pista, fora dela e de a queda ser um highside), nas três categorias, e guarda metade da distância dos outros |
 | Grid competitivo | Todos os pilotos da CPU com o ritmo do mais rápido da categoria (acelerador, tempos de classificação), em todas as dificuldades, no seco e na chuva; todas as motos de cada categoria com o torque da mais forte (MotoGP 94, 250cc 58, 125cc 31), mantendo câmbio, aderência e manejo de cada uma; ataques começam de mais longe (15 m) e defender não tira velocidade. As chances de queda continuam individuais (e dobradas) |
 | Toques estilo takedown | Um toque entre motos derruba com menos diferença de velocidade (92 → 55) e empurra 2,5 vezes mais forte; bater numa moto caída derruba mais cedo; as rivalidades entre pilotos pioram mais rápido a cada batida |
@@ -38,12 +37,16 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | Queda fatal e bandeira vermelha | Numa queda forte (acima de ~90 km/h) um piloto da CPU pode morrer (1 em 3): ele fica no chão, sai da corrida, a cena passa em câmera lenta e a corrida para com a bandeira vermelha na tela; START abre o menu para reiniciar ou sair |
 | FOV dentro do jogo | Opções > Video Setup > *Field of view*: -5° a +40° em passos de 5°, somado ao FOV escolhido na instalação; fica salvo no memory card (ocupa a opção "Standings", que o jogo não usa) |
 | Motion blur | Acima de 90 km/h o quadro anterior é misturado ao atual, cada vez mais forte até 270 km/h (75%) |
-| Xingamentos e takedowns | Quando um piloto cai depois de um toque, ele xinga quem o derrubou numa caixa de texto (10 frases); se foi você quem derrubou, aparece TAKEDOWN em câmera lenta com a contagem; se você cai, o bot zomba de você |
+| Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele e gira ao redor em câmera lenta por uns 4 s enquanto o piloto automático do jogo (AUTODRIVE) guia a sua moto; depois volta para você |
+| Xingamentos | Quem cai depois de um toque xinga o rival num painel no estilo do HUD (fonte do próprio jogo, com acentos); se você cai, o bot zomba de você |
+| Sangue e destroços | Nas quedas sai um jato de sangue do piloto que deixa manchas pelo caminho, e peças da moto voam |
 | Safety Car (experimental, opcional) | A BMW M6 Safety Car do MotoGP 4 como uma equipe e um piloto a mais, marcada na página de instalação |
 
-Nas pistas, colisão, traçado da IA, grid, câmeras de replay e cronometragem
-continuam as do MotoGP 08, então as corridas funcionam normalmente; muda o
-que se vê. Assen, Le Mans e Motegi continuam com o visual do 08 (veja o
+**Pistas do MotoGP 4 removidas do patch.** Nelas, colisão, traçado da IA, grid, câmeras de replay e cronometragem
+continuavam as do MotoGP 08 e só o visual mudava; onde o desenho do MotoGP 4
+não coincide com o do 08 (7% a 51% do traçado), os pilotos andavam sobre a
+grama do visual. Todas as pistas voltaram a ser as originais do 08; o
+conversor continua no repositório. Assen, Le Mans e Motegi continuam com o visual do 08 (veja o
 porquê em [pistas](docs/formats/pistas.md#resultado)), e Indianápolis, Laguna
 Seca, Misano e Xangai não existem no MotoGP 4.
 
@@ -143,7 +146,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`249fb17c69c4b0a32b54d0e653266cdd71b20f12` com FOV 70 e sem Safety Car; as
+(`396186e93ed7cb9f0e378f7b8fde590ce616f4e2` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou
