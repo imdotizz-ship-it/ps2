@@ -38,6 +38,7 @@ typedef struct { float x, y, z; } V3;
 #define PI 3.14159265f
 
 extern void rf_tick(void);
+extern void ins_tick(void);
 extern void game_lookat(void *cml, V3 *pos, V3 *tgt);
 extern void game_setfov(void *cml, float h, float v);
 
@@ -99,6 +100,7 @@ int fc_ftoi(float f) { int i; __asm__("cvt.w.s %1,%1\n\tmfc1 %0,%1" : "=r"(i), "
 void on_pad_read(u8 *pad, int port) {
     if (port != 0) return;
     rf_tick();
+    ins_tick();
     u8 *raw = pad + 0x1214;
     u32 b = (~(raw[0] | (raw[1] << 8))) & 0xffff;
     FC.prev = FC.buttons;
@@ -124,7 +126,8 @@ void on_pad_read(u8 *pad, int port) {
 
 /* H4 pre-step: dt fed to RaceBase::Update. 0 = no fixed sim steps (bikes, AI, timers, game cam frozen) */
 extern float rf_sim_dt(float dt);
-float fc_sim_dt(float dt) { dt = rf_sim_dt(dt); return (FC.active && FC.freeze) ? 0.0f : dt; }
+extern float ins_sim_dt(float dt);
+float fc_sim_dt(float dt) { dt = ins_sim_dt(rf_sim_dt(dt)); return (FC.active && FC.freeze) ? 0.0f : dt; }
 
 /* H4 post-step: game camera already written for this frame; render happens after App::GameUpdate
    reaches BeginScene (0x38ef50), so whatever we write here is what gets drawn. */

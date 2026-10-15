@@ -20,8 +20,10 @@ run(CL + ['-c', os.path.join(HERE, 'hook.S'), '-o', B + '/hook.o'])
 run(CL + ['-c', os.path.join(HERE, 'user.c'), '-o', B + '/user.o'])
 run(CL + ['-c', os.path.join(HERE, 'freecam.c'), '-o', B + '/freecam.o'])
 run(CL + EXTRA + ['-c', os.path.join(HERE, 'redflag.c'), '-o', B + '/redflag.o'])
+run(CL + EXTRA + ['-c', os.path.join(HERE, 'insult.c'), '-o', B + '/insult.o'])
+run(CL + EXTRA + ['-c', os.path.join(HERE, 'blur.c'), '-o', B + '/blur.o'])
 run(['ld.lld', '-m', 'elf32ltsmipn32', '-T', os.path.join(HERE, 'link.ld'), '--no-check-sections', '-o', B + '/payload.elf',
-     B + '/hook.o', B + '/user.o', B + '/freecam.o', B + '/redflag.o'])
+     B + '/hook.o', B + '/user.o', B + '/freecam.o', B + '/redflag.o', B + '/insult.o', B + '/blur.o'])
 run(['llvm-objcopy', '-O', 'binary', B + '/payload.elf', B + '/payload.bin'])
 syms = {}
 for l in subprocess.check_output(['llvm-nm', B + '/payload.elf']).decode().splitlines():
@@ -72,10 +74,28 @@ HOOKS = [(0x38eeac, 0x1f5840, 'hook_input_update'),
          (0x2c7b38, 0x2cbe30, 'hook_race_cam'),      # race update (H4) -> fc_sim_dt / on_race_cam
          (0x319274, 0x3141d0, 'hook_fall'),
          (0x319290, 0x3141d0, 'hook_fall'),
+         (0x309f3c, 0x319020, 'hook_bb1'),          # bike-bike contact, ctl of A
+         (0x309fb8, 0x319020, 'hook_bb2'),          # bike-bike contact, ctl of B
+         (0x27e79c, 0x2880f0, 'hook_ae_render'),     # motion blur: race render after-effects
+         (0x2806f8, 0x2880f0, 'hook_ae_render'),
+         (0x281630, 0x2880f0, 'hook_ae_render'),
+         (0x4c57ac, 0x20ee80, 'hook_fov'),           # FOV menu option -> race camera
          ]
 for site, orig, name in HOOKS:
     assert rd(site) == jal(orig), 'site %x has %08x, expected jal %x' % (site, rd(site), orig)
     wr(site, jal(syms[name]))
+# --- FOV menu option: Video Setup slot 10 ('Standings', VideoList byte +0xe, unused by game code)
+# becomes an N-entry spinner whose value texts come from ZTX key 'Horiz_FOV' (existing rodata string
+# at 0x5ced0a; key added to MENU\TEXT\*\COMMON.ZTX by make_fov_text.py).  Must match FOV_NVAL in hook.S.
+import re; FOV_NVAL = int(re.search(r'^FOV_NVAL = (\d+)', open(os.path.join(HERE, 'hook.S')).read(), re.M).group(1))
+def wrc(va, new, old):
+    assert rd(va) == old, '%x: %08x != %08x' % (va, rd(va), old); wr(va, new)
+assert d[va2off(0x5ced0a):va2off(0x5ced0a) + 10] == b'Horiz_FOV\0'
+wrc(0x3cb418, 0x3c05005d, 0x3c05005e)            # lui   a1,0x5d
+wrc(0x3cb420, 0x24a5ed0a, 0x24a5c782)            # addiu a1,a1,-0x12f6 -> 0x5ced0a 'Horiz_FOV' (was 'OFF_ON')
+wrc(0x3cb424, 0x24060000 | FOV_NVAL, 0x24060002) # addiu a2,zero,N  (count; min 0, step 1, max N-1)
+wrc(0x3cb428, 0x24080000, 0x24080001)            # addiu t0,zero,0  (clamp at the ends, no wrap)
+wrc(0x3cafa8, 0x00000000, 0x0006302b)            # ZVideoOpt::Apply: 'sltu a2,zero,a2' -> nop (keep index)
 # append segment at end of file (aligned) and fill phdr[1]
 e_phoff = struct.unpack_from('<I', d, 0x1c)[0]
 off = (len(d) + 0x7f) & ~0x7f

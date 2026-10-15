@@ -5,6 +5,7 @@
 # trampoline saves s0-s7/fp with sq and f20-f31 itself.
         .set noreorder
         .set noat
+FOV_NVAL = 10
         .macro SQ rt, off
         .word 0x7c000000 | (29 << 21) | (\rt << 16) | (\off)
         .endm
@@ -132,6 +133,8 @@ hook_race_cam:
         lw   $a0, 0xc4($sp)
         jal  on_race_cam            # void on_race_cam(u8 *race, float dt)  (n32: dt in $f13)
         lwc1 $f13, 0xc0($sp)
+        jal  blur_update            # void blur_update(void): player speed -> blur strength
+        nop
         RESTALL
         jr   $ra
         addiu $sp, $sp, 0x100
@@ -166,3 +169,88 @@ hook_fall:
         RESTALL
         jr   $ra
         addiu $sp, $sp, 0x100
+
+# H6/H7: replace the two 'jal 0x319020' (RiderCtl::OnCollision(ctl=a0, type=a1, forceFall=a2,
+# otherFallen=a3, otherHuman=$8, f12=cos angle, f13=speed diff, f14=side speed)) inside the
+# bike-bike collision 0x309500: 0x309f3c (ctl A, partner B) and 0x309fb8 (ctl B, partner A).
+# bb_pre/bb_post bracket the call; any StartFall seen in between is a contact fall.
+        .macro BBHOOK name, which
+        .globl \name
+\name:
+        SAVEALL
+        sw   $4, 0xc4($sp)
+        sw   $5, 0xc8($sp)
+        sw   $6, 0xcc($sp)
+        sw   $7, 0xd0($sp)
+        sw   $8, 0xd4($sp)
+        swc1 $f12, 0xd8($sp)
+        swc1 $f13, 0xdc($sp)
+        swc1 $f14, 0xe0($sp)
+        jal  bb_pre                 # void bb_pre(u8 *ctl, int which)
+        addiu $5, $0, \which
+        lw   $4, 0xc4($sp)
+        lw   $5, 0xc8($sp)
+        lw   $6, 0xcc($sp)
+        lw   $7, 0xd0($sp)
+        lw   $8, 0xd4($sp)
+        lwc1 $f12, 0xd8($sp)
+        lwc1 $f13, 0xdc($sp)
+        jal  0x319020
+        lwc1 $f14, 0xe0($sp)
+        lw   $4, 0xc4($sp)
+        jal  bb_post                # void bb_post(u8 *ctl, int which)
+        addiu $5, $0, \which
+        RESTALL
+        jr   $ra
+        addiu $sp, $sp, 0x100
+        .endm
+        BBHOOK hook_bb1, 1
+        BBHOOK hook_bb2, 2
+# ---------------------------------------------------------------- motion blur ----
+# H6: replaces 'jal 0x2880f0' (AfterEffects::Render(fx=a0, cam2d=a1, a2, a3)) in the race
+# render 0x27d8d0 at 0x27e79c, 0x2806f8, 0x281630. After the game's own effects we blend the
+# previous (front) frame over the frame being drawn: blur_post -> 0x294950(fx, cam, FIX).
+        .globl hook_ae_render
+hook_ae_render:
+        SAVEALL
+        sw   $a0, 0xc4($sp)
+        sw   $a1, 0xc8($sp)
+        jal  0x2880f0
+        nop
+        lw   $a0, 0xc4($sp)
+        jal  blur_post              # void blur_post(void *fx, void *cam)
+        lw   $a1, 0xc8($sp)
+        RESTALL
+        jr   $ra
+        addiu $sp, $sp, 0x100
+
+# 0x294950(fx, cam2d, FIX): full-screen front->back blend, ALPHA (Cs-Cd)*FIX/128+Cd. Int args only.
+        .globl game_blur
+game_blur:
+        j    0x294950
+        nop
+
+# ---------------------------------------------------------------- FOV option ----
+# H6: replaces 'jal 0x20ee80' (CML_Camera::SetFOV(cml=a0, hdeg=f12, vdeg=f13)) at 0x4c57ac inside
+# RaceCam::ApplyFov 0x4c5680 (runs when RC+0xe8 dirty / +0x111 set; delay slot 'mov.s f13,f12' kept).
+# Setting = Options->VideoList byte +0xe (ex-"Standings", dead in game code): options = *(gp-0x52fc)
+# (=*0x5ffd74), byte at +0x8e. index 1 (= old 'true' / DB default) -> +0; delta = (index-1)*5 degrees.
+# Out-of-range index -> unchanged.  Clobbers only v0/v1/at/f0 (caller-saved at a jal).
+        .globl hook_fov
+hook_fov:
+        lw    $2, -0x52fc($28)
+        beqz  $2, 1f
+        nop
+        lbu   $2, 0x8e($2)
+        sltiu $1, $2, FOV_NVAL
+        beqz  $1, 1f
+        addiu $2, $2, -1
+        sll   $3, $2, 2
+        addu  $2, $2, $3
+        mtc1  $2, $f0
+        nop
+        cvt.s.w $f0, $f0
+        add.s $f12, $f12, $f0
+        add.s $f13, $f13, $f0
+1:      j     0x20ee80
+        nop

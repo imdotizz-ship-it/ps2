@@ -40,9 +40,13 @@ extern struct fcview FC;
 extern int fc_ftoi(float f);
 
 extern void rf_draw(void *ctx);
+extern void ins_draw(void *ctx);
+extern void blur_tick(void);
 void on_draw(void *ctx) {
     MB.draws++;
     rf_draw(ctx);
+    ins_draw(ctx);
+    blur_tick();
     if (FC.active && FC.alive)
     {   /* <= 8 int args: n32 and EABI agree on $4..$11, avoid stack-passed varargs */
         game_printf(ctx, 2, 2, "FREECAM pos %d %d %d", fc_ftoi(FC.px), fc_ftoi(FC.py), fc_ftoi(FC.pz));

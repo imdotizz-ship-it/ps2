@@ -14,6 +14,9 @@ typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; 
 #ifndef RF_CHANCE
 #define RF_CHANCE 3             /* 1 in RF_CHANCE hard AI crashes is fatal */
 #endif
+#ifndef RF_ENABLE
+#define RF_ENABLE 1
+#endif
 #ifndef RF_AI_ONLY
 #define RF_AI_ONLY 1
 #endif
@@ -36,9 +39,11 @@ static inline int rf_flt(float a, float b) {       /* a < b, R5900-safe */
     return r;
 }
 
+extern void ins_on_fall(u8 *veh, u8 *ctl, float speed);
 void on_fall(u8 *veh, u8 *ctl, float speed) {
-    (void)ctl;
     if (!veh) return;
+    ins_on_fall(veh, ctl, speed);
+    if (!RF_ENABLE) return;
     RF.falls++;
     RF.last_speed = speed;
     if (rf_flt(RF.max_speed, speed)) RF.max_speed = speed;
