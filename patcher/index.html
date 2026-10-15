@@ -75,6 +75,7 @@ ul{padding-left:20px;margin:6px 0}
 const $ = id => document.getElementById(id);
 const MIRROR = "https://raw.githubusercontent.com/imdotizz-ship-it/ps2/claude/ps2-game-mods-drastic-3mwmob/patcher/";
 let manifest = null, iso = null, localParts = {}, choice = {}, profile = null;
+const goodParts = {};
 
 function say(text, cls) { const s = $("status"); s.textContent = text; s.className = cls || ""; }
 function progress(v) { const b = $("bar"); b.hidden = false; b.value = v; }
@@ -85,12 +86,13 @@ async function sha1(blob) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function fetchFirst(file, onProgress) {
-  const urls = [new URL(file, location.href).href, MIRROR + file];
+async function fetchFirst(file, onProgress, bust) {
+  const q = bust ? "?v=" + Date.now() : "";
+  const urls = [new URL(file, location.href).href + q, MIRROR + file + q];
   let last;
   for (const url of urls) {
     try {
-      const r = await fetch(url, { cache: "no-cache" });
+      const r = await fetch(url, { cache: "no-store" });
       if (!r.ok) throw new Error(r.status + " " + url);
       if (!onProgress || !r.body) return await r.blob();
       const reader = r.body.getReader(), chunks = []; let got = 0;
@@ -107,7 +109,7 @@ async function fetchFirst(file, onProgress) {
 
 async function loadManifest() {
   try {
-    manifest = JSON.parse(await (await fetchFirst("manifest.json")).text());
+    manifest = JSON.parse(await (await fetchFirst("manifest.json", null, true)).text());
     $("changes").innerHTML = "";
     for (const c of manifest.changes || []) {
       const li = document.createElement("li"); li.textContent = c; $("changes").appendChild(li);
@@ -166,10 +168,17 @@ async function build() {
   let before = 0; const parts = [];
   for (const p of m.parts) {
     say("Baixando o patch… " + mib(before) + " de " + mib(total));
-    let blob = localParts[p.file];
-    if (!blob) blob = await fetchFirst(p.file, got => { progress((before + got) / total * 0.7); say("Baixando o patch… " + mib(before + got) + " de " + mib(total)); });
-    if (blob.size !== p.size || await sha1(blob) !== p.sha1) throw new Error("A parte " + p.file + " veio corrompida. Tente de novo.");
-    parts.push(blob); before += p.size; progress(before / total * 0.7);
+    let blob = localParts[p.file] || goodParts[p.file], ok = false;
+    if (blob) ok = blob.size === p.size && await sha1(blob) === p.sha1;
+    for (let attempt = 0; !ok && attempt < 3; attempt++) {     /* retry a cut or stale download */
+      try {
+        blob = await fetchFirst(p.file, got => { progress((before + got) / total * 0.7); say("Baixando o patch… " + mib(before + got) + " de " + mib(total) + (attempt ? " (tentativa " + (attempt + 1) + ")" : "")); }, attempt > 0);
+        ok = blob.size === p.size && await sha1(blob) === p.sha1;
+      } catch (e) { ok = false; }
+      if (!ok) await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+    }
+    if (!ok) throw new Error("Não consegui baixar a parte " + p.file + " (" + mib(p.size) + ") depois de 3 tentativas. Verifique a internet e toque em Criar ISO de novo; as partes que já vieram não precisam ser baixadas outra vez.");
+    goodParts[p.file] = blob; parts.push(blob); before += p.size; progress(before / total * 0.7);
   }
   const chunks = [];
   for (let i = 0; i < m.chunks.length; i++) {

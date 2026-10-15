@@ -34,7 +34,7 @@ from ps2iso import DiscImage, PVD_LBA, SECTOR  # noqa: E402
 
 FORMAT = "ps2-isopatch-1"
 CHUNK = 4 << 20           # new data is compressed in pieces of at most 4 MiB
-PART = 40 << 20           # and stored in part files of about 40 MiB
+PART = 8 << 20            # and stored in part files of about 8 MiB (easy to download on a phone)
 
 
 def _sha1(b):
@@ -238,6 +238,12 @@ def make(iso, out_dir, replacements, out_iso=None, name="patched.iso", notes=(),
     for off in (0, PVD_LBA * SECTOR, src_size // 3, src_size // 2, 2 * src_size // 3, src_size - 65536):
         src.seek(off); samples.append([off, 65536, _sha1(src.read(65536))])
     src.close()
+    # content-addressed part names: a CDN or browser cache can never mix two patch versions
+    for i, p in enumerate(store.parts):
+        h = _sha1(open(os.path.join(out_dir, p), "rb").read())[:10]
+        q = "part-%02d-%s.patch" % (i, h)
+        os.replace(os.path.join(out_dir, p), os.path.join(out_dir, q))
+        store.parts[i] = q
     manifest = {
         "format": FORMAT,
         "changes": list(notes),
