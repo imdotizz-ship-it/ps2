@@ -44,18 +44,18 @@ extern void ins_draw(int pass);
 extern void blur_tick(void);
 extern int ui_begin(void);
 extern void ui_end_solid(void), ui_end_text(void);
-extern void ui_panel(float, float, float, float, const u8 *, float);
-extern void ui_text_sh(float, float, const char *, float, const u8 *, float);
+extern void ui_pill_white(float, float, float, float, float), ui_pill_black(float, float, float, float, float);
+extern void ui_text_row(float, float, float, const char *, float, const u8 *, float);
 static void fc_draw(int pass) {
-    static const u8 blue[4] = { 40, 150, 255, 255 }, white[4] = { 255, 255, 255, 255 }, grey[4] = { 190, 195, 205, 255 };
+    static const u8 white[4] = { 255, 255, 255, 255 }, black[4] = { 16, 16, 18, 255 };
     if (!(FC.active && FC.alive)) return;
-    if (pass == 0) { ui_panel(20, 20, 250, 70, blue, 1.0f); return; }
+    if (pass == 0) { ui_pill_white(24, 64, 204, 88, 1.0f); ui_pill_black(24, 92, 204, 116, 1.0f); return; }
     char b[48]; int o = 0, n = fc_ftoi(FC.fov), k = 0; char d[8];
     const char *p = "FOV "; while (*p) b[o++] = *p++;
     while (n && k < 7) { d[k++] = '0' + n % 10; n /= 10; } while (k) b[o++] = d[--k];
     p = FC.freeze ? "  ·  pausado" : "  ·  rodando"; while (*p) b[o++] = *p++; b[o] = 0;
-    ui_text_sh(36, 26, "CÂMERA LIVRE", 0.66f, white, 1.0f);
-    ui_text_sh(36, 48, b, 0.5f, grey, 1.0f);
+    ui_text_row(40, 64, 88, "CÂMERA LIVRE", 0.6f, black, 1.0f);
+    ui_text_row(40, 92, 116, b, 0.55f, white, 1.0f);
 }
 void on_draw(void *ctx) {
     (void)ctx;

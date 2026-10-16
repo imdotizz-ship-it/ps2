@@ -90,27 +90,38 @@ void rf_tick(void) {
 }
 
 extern int game_printf(void *ctx, int col, int row, const char *fmt, ...);
-extern void ui_panel(float, float, float, float, const u8 *, float);
 extern void ui_flag(float, float, u32, const u8 *, float);
-extern void ui_text_sh(float, float, const char *, float, const u8 *, float);
+extern void ui_pill_white(float, float, float, float, float), ui_pill_black(float, float, float, float, float),
+            ui_pill_red(float, float, float, float, float);
+extern void ui_text_row(float, float, float, const char *, float, const u8 *, float);
 extern float ui_text_width(const char *, float);
-/* pass 0: panel + waving flag, pass 1: text (HUD font) */
+/* game HUD style: white pill with the waving flag + red title pill, black rows below.
+ * pass 0: pills + flag, pass 1: text */
 void rf_draw(int pass) {
-    static const u8 red[4] = { 220, 20, 20, 255 }, white[4] = { 255, 255, 255, 255 },
-                    grey[4] = { 200, 200, 205, 255 }, yel[4] = { 255, 200, 40, 255 };
+    static const u8 red[4] = { 210, 10, 10, 255 }, white[4] = { 255, 255, 255, 255 }, black[4] = { 16, 16, 18, 255 };
+#ifdef UI_DEBUG
+    if (pass == 0) { static u32 dbgt = 100; RF.timer = ++dbgt; }
+    RF.state = 2; RF.alive = 1;
+#endif
     if (!RF.state || !RF.alive) return;
     float a = RF.timer < 16 ? RF.timer / 16.0f : 1.0f;          /* fade in */
-    float x0 = 150, y0 = 64, x1 = 490, y1 = RF.state == 2 ? 166 : 124;
+    float x0 = 170, x1 = 470, y0 = 150;
+    float p = ((RF.timer >> 5) & 1) ? 1.0f : 0.6f;               /* slow pulse */
     if (pass == 0) {
-        ui_panel(x0, y0, x1, y1, red, a);
-        ui_flag(x0 + 18, y0 + 12, RF.timer, red, a);
+        ui_pill_white(x0, y0, x0 + 64, y0 + 40, a);
+        ui_flag(x0 + 18, y0 + 4, RF.timer, red, a * 0.9f);
+        ui_pill_red(x0 + 70, y0, x1, y0 + 40, a);
+        ui_pill_black(x0 + 70, y0 + 44, x1, y0 + 68, a);
+        if (RF.state == 2) {
+            ui_pill_black(x0 + 70, y0 + 72, x1, y0 + 96, a);
+            ui_pill_white(x0 + 70, y0 + 100, x1, y0 + 124, a * p);
+        }
         return;
     }
-    ui_text_sh(x0 + 76, y0 + 10, "BANDEIRA VERMELHA", 1.0f, white, a);
-    ui_text_sh(x0 + 76, y0 + 40, "Acidente fatal na pista", 0.62f, grey, a);
+    ui_text_row(x0 + 88, y0, y0 + 40, "BANDEIRA VERMELHA", 0.78f, white, a);
+    ui_text_row(x0 + 88, y0 + 44, y0 + 68, "Acidente fatal na pista", 0.6f, white, a);
     if (RF.state == 2) {
-        ui_text_sh(x0 + 76, y0 + 62, "A corrida foi interrompida.", 0.62f, grey, a);
-        float p = ((RF.timer >> 5) & 1) ? 1.0f : 0.55f;           /* slow pulse */
-        ui_text_sh(x0 + 76, y0 + 82, "START  ·  Reiniciar a corrida", 0.62f, yel, a * p);
+        ui_text_row(x0 + 88, y0 + 72, y0 + 96, "A corrida foi interrompida", 0.6f, white, a);
+        ui_text_row(x0 + 88, y0 + 100, y0 + 124, "START  ·  Reiniciar a corrida", 0.6f, black, a * p);
     }
 }

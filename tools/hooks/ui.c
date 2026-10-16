@@ -129,6 +129,10 @@ void ui_text(float x, float y, const char *s, float scale, const u8 *col, float 
         x += w;
     }
 }
+/* text vertically centred in a HUD row y0..y1 (font line height ~29 px at scale 1) */
+void ui_text_row(float x, float y0, float y1, const char *s, float scale, const u8 *col, float a) {
+    ui_text(x, y0 + ((y1 - y0) - 29.0f * scale) * 0.5f, s, scale, col, a);
+}
 /* text with a soft drop shadow */
 void ui_text_sh(float x, float y, const char *s, float scale, const u8 *col, float a) {
     static const u8 sh[4] = { 0, 0, 0, 200 };
@@ -168,6 +172,45 @@ void ui_panel(float x0, float y0, float x1, float y1, const u8 *accent, float a)
     ui_box(x0, y0, x1, y1, body, a);
     ui_box(x0, y0, x0 + 6, y1, accent, a);
     ui_box(x0 + 6, y0, x1, y0 + 2, hl, a);
+}
+
+/* MotoGP 08 HUD style pill (the "OVERTAKE" / "Laps" / standings widgets): rounded ends,
+ * vertical gradient from top to bot colour */
+static void vtxg(float x, float y, float y0, float y1, const u8 *t, const u8 *b, float a) {
+    float k = (y - y0) / (y1 - y0);                       /* colours stay floats: no float->int on R5900 */
+    Vtx *p = &V[nv++];
+    p->x = x; p->y = y; p->z = vz; p->cz = 0; p->u = 0; p->v = 0; p->rz = vrz; p->pad = 0;
+    p->r = t[0] + (b[0] - t[0]) * k; p->g = t[1] + (b[1] - t[1]) * k; p->b = t[2] + (b[2] - t[2]) * k; p->a = t[3] * a;
+}
+void ui_pill(float x0, float y0, float x1, float y1, const u8 *top, const u8 *bot, float a) {
+    static const float CS[9] = { 0, .383f, .707f, .924f, 1, .924f, .707f, .383f, 0 },
+                       SN[9] = { -1, -.924f, -.707f, -.383f, 0, .383f, .707f, .924f, 1 };
+    float r = (y1 - y0) * 0.5f, cy = y0 + r, l = x0 + r, rr = x1 - r;
+    if (flt(rr, l)) rr = l;
+    if (nv + 6 + 48 > MAXV) return;
+    vtxg(l, y0, y0, y1, top, bot, a); vtxg(rr, y0, y0, y1, top, bot, a); vtxg(l, y1, y0, y1, top, bot, a);
+    vtxg(rr, y0, y0, y1, top, bot, a); vtxg(rr, y1, y0, y1, top, bot, a); vtxg(l, y1, y0, y1, top, bot, a);
+    for (int i = 0; i < 8; i++) {
+        vtxg(rr, cy, y0, y1, top, bot, a);                                   /* right cap */
+        vtxg(rr + CS[i] * r, cy + SN[i] * r, y0, y1, top, bot, a);
+        vtxg(rr + CS[i + 1] * r, cy + SN[i + 1] * r, y0, y1, top, bot, a);
+        vtxg(l, cy, y0, y1, top, bot, a);                                    /* left cap */
+        vtxg(l - CS[i] * r, cy + SN[i] * r, y0, y1, top, bot, a);
+        vtxg(l - CS[i + 1] * r, cy + SN[i + 1] * r, y0, y1, top, bot, a);
+    }
+}
+/* the three HUD pill styles */
+void ui_pill_white(float x0, float y0, float x1, float y1, float a) {
+    static const u8 t[4] = { 255, 255, 255, 240 }, b[4] = { 196, 198, 202, 240 };
+    ui_pill(x0, y0, x1, y1, t, b, a);
+}
+void ui_pill_black(float x0, float y0, float x1, float y1, float a) {
+    static const u8 t[4] = { 40, 40, 44, 225 }, b[4] = { 0, 0, 0, 225 };
+    ui_pill(x0, y0, x1, y1, t, b, a);
+}
+void ui_pill_red(float x0, float y0, float x1, float y1, float a) {
+    static const u8 t[4] = { 230, 40, 40, 245 }, b[4] = { 150, 0, 6, 245 };
+    ui_pill(x0, y0, x1, y1, t, b, a);
 }
 
 /* waving red flag icon (pole + 4 strips) at (x,y), ~44x40 */

@@ -39,7 +39,7 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | FOV dentro do jogo | Opções > Video Setup > *Field of view*: -5° a +40° em passos de 5°, somado ao FOV escolhido na instalação; fica salvo no memory card (ocupa a opção "Standings", que o jogo não usa) |
 | Motion blur | Leve: só acima de 180 km/h o quadro anterior é misturado ao atual, até 31% a 306 km/h |
 | Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele, em câmera lenta leve, por uns 2,5 s enquanto o piloto automático do jogo (AUTODRIVE) guia a sua moto; depois o controle volta sempre para você. Um toque leve não derruba você: as quedas forçadas só derrubam bots |
-| Xingamentos | Quem cai depois de um toque xinga o rival num painel no estilo do HUD (fonte do próprio jogo, com acentos); se você cai, o bot zomba de você. Cada xingamento tem voz em português (sintetizada) |
+| Xingamentos | Quem cai depois de um toque xinga o rival numa caixa igual aos widgets do HUD do MotoGP 08 (pílula vermelha com o número, barra preta com o nome, pílula branca com a frase; fonte do próprio jogo); se você cai, o bot zomba de você. Cada xingamento tem voz em português (sintetizada) |
 | Para-brisa quebrado | Numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida (o sangue foi retirado) |
 | Briga | Às vezes, quando um bot derruba outro, a câmera corta para ele sacudindo o punho (gesto de raiva do próprio jogo, `rabbiaDX`) em câmera lenta, com o xingamento na tela |
 | Torcida mais alta | O som da torcida e do ambiente ficou cerca de 4 dB mais alto (limitador suave nas gravações, sem o corte de -2 dB do banco e com o volume de ambiente em 1.0); as arquibancadas continuam onde estavam ([`tools/audio`](tools/audio)) |
@@ -143,7 +143,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`0fd139815aafefd3915664e0465264f3f94effd9` com FOV 70 e sem Safety Car; as
+(`9345bb60316c074aeceb7699dbbef768626ac073` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou

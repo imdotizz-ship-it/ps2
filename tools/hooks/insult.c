@@ -39,7 +39,8 @@ struct insstate {
     u32 show;                          /* draws left for the box */
     u32 age;                           /* draws since box started */
     u32 td_show, td_slow, alive;
-    char who[40];                      /* "#46 Rossi:" */
+    char who[32];                      /* "Rossi" */
+    char num[8];                       /* "46" */
     char line[64];
 };
 __attribute__((section(".data"))) struct insstate INS = { 0x4c534e49, 0x9e3779b9 };
@@ -140,10 +141,9 @@ static void say(u8 *speaker, u8 *target, int taunt) {
     pilot_name(target, tname, sizeof tname);
     int num = pilot_num(speaker, pilot_key(speaker));
     int o = 0;
-    INS.who[0] = 0;
-    if (num) { o = cat(INS.who, o, sizeof INS.who, "#"); o = catnum(INS.who, o, sizeof INS.who, num); o = cat(INS.who, o, sizeof INS.who, " "); }
-    o = cat(INS.who, o, sizeof INS.who, sname);
-    cat(INS.who, o, sizeof INS.who, ":");
+    INS.who[0] = 0; INS.num[0] = 0;
+    if (num) catnum(INS.num, 0, sizeof INS.num, num);
+    cat(INS.who, o, sizeof INS.who, sname);
     int li = (int)(rnd() % NLINES);
     const char *f = taunt ? TAUNTS[rnd() % NTAUNTS] : LINES[li];
     { extern void voice_play(int); if (!taunt) voice_play(li); }
@@ -263,37 +263,53 @@ static int ins_flt(float a, float b) {   /* a < b, R5900-safe */
                      : "=&r"(r) : "f"(a), "f"(b));
     return r;
 }
-extern void ui_panel(float, float, float, float, const u8 *, float);
-extern void ui_text_sh(float, float, const char *, float, const u8 *, float);
+extern void ui_pill_white(float, float, float, float, float), ui_pill_black(float, float, float, float, float),
+            ui_pill_red(float, float, float, float, float);
+extern void ui_text_row(float, float, float, const char *, float, const u8 *, float);
 extern float ui_text_width(const char *, float);
-/* pass 0: panels, pass 1: text; counters advance once per frame (pass 1) */
+/* drawn like the game's own HUD widgets (OVERTAKE / standings rows):
+ *   [red pill: number] name          <- black pill row
+ *   [white pill: the line, black text]
+ * pass 0: pills, pass 1: text; counters advance once per frame (pass 1) */
 void ins_draw(int pass) {
-    static const u8 acc[4] = { 255, 170, 0, 255 }, red[4] = { 230, 30, 30, 255 },
-                    white[4] = { 255, 255, 255, 255 }, name[4] = { 255, 205, 60, 255 };
+    static const u8 white[4] = { 255, 255, 255, 255 }, black[4] = { 16, 16, 18, 255 };
     if (!INS.alive) return;
+#ifdef UI_DEBUG
+    if (pass == 0 && !INS.show) { const char *s = "Lorenzo", *n = "48", *l = "Tá cego, Melandri?! Era a minha linha!";
+        int i = 0; while ((INS.who[i] = s[i])) i++; i = 0; while ((INS.num[i] = n[i])) i++; i = 0; while ((INS.line[i] = l[i])) i++;
+        INS.show = SHOW_FR; INS.age = 0; INS.takedowns = 3; }
+#endif
     if (INS.show) {
         float a = INS.age < 10 ? INS.age / 10.0f : (INS.show < 20 ? INS.show / 20.0f : 1.0f);
-        float sc = 0.62f, w = ui_text_width(INS.line, sc);
-        if (ins_flt(400.0f, w)) { sc = 0.62f * 400 / w; w = 400; }
-        float x0 = 24, y0 = 318, x1 = x0 + 30 + (ins_flt(220.0f, w) ? w : 220), y1 = 378;
-        if (pass == 0) ui_panel(x0, y0, x1, y1, acc, a);
-        else {
-            ui_text_sh(x0 + 18, y0 + 8, INS.who, 0.66f, name, a);
-            ui_text_sh(x0 + 18, y0 + 32, INS.line, sc, white, a);
+        float sc = 0.6f, w = ui_text_width(INS.line, sc);
+        if (ins_flt(440.0f, w)) { sc = sc * 440 / w; w = 440; }
+        float nw = ui_text_width(INS.who, 0.62f); int hasnum = INS.num[0] != 0; float bw = hasnum ? 46.0f : 0.0f;
+        float x0 = 320 - (w + 36) * 0.5f, y0 = 318;
+        if (pass == 0) {
+            ui_pill_black(x0, y0, x0 + bw + nw + 34, y0 + 24, a);
+            if (hasnum) ui_pill_red(x0, y0, x0 + bw, y0 + 24, a);
+            ui_pill_white(x0, y0 + 28, x0 + w + 36, y0 + 52, a);
+        } else {
+            if (hasnum) ui_text_row(x0 + (bw - ui_text_width(INS.num, 0.62f)) * 0.5f, y0, y0 + 24, INS.num, 0.62f, white, a);
+            ui_text_row(x0 + bw + 14, y0, y0 + 24, INS.who, 0.62f, white, a);
+            ui_text_row(x0 + 18, y0 + 28, y0 + 52, INS.line, sc, black, a);
             INS.show--; INS.age++;
         }
     }
     if (INS.td_show) {
         float a = INS.td_show < 30 ? INS.td_show / 30.0f : 1.0f;
-        float big = INS.td_show > SHOW_FR - 12 ? 1.9f - (SHOW_FR - INS.td_show) * 0.04f : 1.45f;  /* punch-in */
+        float big = INS.td_show > SHOW_FR - 10 ? 1.25f - (SHOW_FR - INS.td_show) * 0.025f : 1.0f;  /* punch-in */
         const char *t = "TAKEDOWN!";
-        float w = ui_text_width(t, big);
-        if (pass == 1) {
-            char b[24]; int o = 0; const char *p0 = "Takedowns: "; while (*p0) b[o++] = *p0++;
-            int n = (int)INS.takedowns, k2 = 0; char d[8]; if (!n) d[k2++] = '0'; while (n) { d[k2++] = '0' + n % 10; n /= 10; }
-            while (k2) b[o++] = d[--k2]; b[o] = 0;
-            ui_text_sh(320 - w / 2, 120, t, big, red, a);
-            ui_text_sh(320 - ui_text_width(b, 0.7f) / 2, 120 + 29 * big + 4, b, 0.7f, white, a);
+        char b[24]; int o = 0; const char *p0 = "Takedowns  "; while (*p0) b[o++] = *p0++;
+        int n = (int)INS.takedowns, k2 = 0; char d[8]; if (!n) d[k2++] = '0'; while (n) { d[k2++] = '0' + n % 10; n /= 10; }
+        while (k2) b[o++] = d[--k2]; b[o] = 0;
+        float w = ui_text_width(t, big), h = 30 * big, wb = ui_text_width(b, 0.6f);
+        if (pass == 0) {
+            ui_pill_red(320 - w / 2 - 22, 104, 320 + w / 2 + 22, 104 + h + 6, a);
+            ui_pill_black(320 - wb / 2 - 18, 104 + h + 10, 320 + wb / 2 + 18, 104 + h + 34, a);
+        } else {
+            ui_text_row(320 - w / 2, 104, 104 + h + 6, t, big, white, a);
+            ui_text_row(320 - wb / 2, 104 + h + 10, 104 + h + 34, b, 0.6f, white, a);
             INS.td_show--;
         }
     }
