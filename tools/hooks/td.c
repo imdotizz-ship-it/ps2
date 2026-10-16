@@ -7,6 +7,7 @@
  * Debug build (-DTD_DEBUG): SELECT starts the cam on the nearest bot. */
 typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; typedef short s16;
 typedef struct { float x, y, z; } V3;
+#define B_SELECT 0x0001
 
 #ifdef FPS60
 #define FR(n) ((n) * 2)                /* 60 fps: frame-counted durations last the same wall time */
@@ -14,13 +15,13 @@ typedef struct { float x, y, z; } V3;
 #define FR(n) (n)
 #endif
 #ifndef TD_FRAMES
-#define TD_FRAMES FR(150)           /* frames the cut lasts (~2.5 s) */
+#define TD_FRAMES FR(75)            /* frames the cut lasts (~2.5 s at 60 fps) */
 #endif
-#define TD_SCALE 0.6f
+#define TD_SCALE 1.0f          /* no slow-motion: smoother than slow-mo over a tumbling ragdoll */
 
 struct tdstate { u32 magic, active, timer, starts; u8 *victim, *player; u16 saved, pad; u32 prevsel; float ang;
                  u32 fight, fside, frames, fights; float scale, gate; u16 vsaved, pad2;
-                 u32 ticks, stops; V3 sm; };
+                 u32 ticks, stops, manual; V3 sm; };
 __attribute__((section(".data"))) struct tdstate TD = { 0x4d434454 /* 'TDCM' */ };
 
 extern void game_lookat(void *cml, V3 *pos, V3 *tgt);
@@ -78,7 +79,7 @@ void td_fight(u8 *angry) {
     if (TD.active || !okp(angry)) return;
     td_start(angry);
     if (!TD.active) return;
-    TD.fight = 1; TD.fside = 1; TD.fights++; TD.frames = FR(240); TD.scale = 0.6f;
+    TD.fight = 1; TD.fside = 1; TD.fights++; TD.frames = FR(120); TD.scale = 1.0f;
     TD.gate = *(float *)0x63db34; *(float *)0x63db34 = 2.0f;
     TD.vsaved = *(u16 *)(angry + 0x12c);
     *(u16 *)(angry + 0x12c) |= 0x10;            /* "in focus": the rider LOD setter 0x34a9f0 keeps full LOD */
@@ -96,7 +97,7 @@ int td_active(void) { return TD.active; }
 void td_reset(void) {
     if (TD.fight) *(float *)0x63db34 = TD.gate;
     { u8 *pv = player_veh(); if (pv && (*(u16 *)(pv + 0x12c) & 0x2)) *(u16 *)(pv + 0x12c) = (*(u16 *)(pv + 0x12c) & ~0x2) | 0x1; }
-    TD.active = 0; TD.fight = 0; TD.victim = TD.player = 0;
+    TD.active = 0; TD.fight = 0; TD.manual = 0; TD.victim = TD.player = 0;
 }
 
 /* race update: slow motion while the cut runs */
@@ -118,7 +119,7 @@ static u8 *nearest_bot(u8 *anyctl) {
     return bv;
 }
 void td_tick(u32 buttons, u8 *last_bot_ctl) {
-    u32 sel = buttons & 0x0001;
+    u32 sel = (buttons & B_SELECT) ? 1 : 0;
 #ifdef SOAK
     { u8 *pv = player_veh(); if (pv && !TD.active) *(u16 *)(pv + 0x12c) = (*(u16 *)(pv + 0x12c) & ~0x1) | 0x2; }  /* soak: AI drives the player */
 #endif
@@ -126,12 +127,18 @@ void td_tick(u32 buttons, u8 *last_bot_ctl) {
     if (sel && !TD.prevsel && last_bot_ctl) td_fight(nearest_bot(last_bot_ctl));
 #else
     (void)nearest_bot;
+    if (sel && !TD.prevsel) TD.manual = !TD.manual;    /* SELECT toggles autopilot on/off (hold control) */
 #endif
     TD.prevsel = sel;
     if (TD.active && ++TD.ticks > TD.frames + FR(60)) td_stop();   /* watchdog: the cut camera may not run */
 #ifndef SOAK
-    { u8 *pv = player_veh();                                   /* never leave the player on autopilot */
-      if (pv && !TD.active && (*(u16 *)(pv + 0x12c) & 0x2)) *(u16 *)(pv + 0x12c) = (*(u16 *)(pv + 0x12c) & ~0x2) | 0x1; }
+    { u8 *pv = player_veh();                                   /* control state when no cut is running */
+      if (pv && !TD.active) {
+          u16 fl = *(u16 *)(pv + 0x12c);
+          if (TD.manual) { if (!(fl & 0x2) || (fl & 0x1)) *(u16 *)(pv + 0x12c) = (fl & ~0x1) | 0x2; }  /* hold autopilot */
+          else if (fl & 0x2) *(u16 *)(pv + 0x12c) = (fl & ~0x2) | 0x1;                                 /* never stuck on AI */
+      }
+    }
 #endif
 }
 
@@ -161,7 +168,7 @@ int td_cam(void *cml) {
     float d = TD.fight ? 3.5f : 6.0f;                           /* fight: close on the rider */
     V3 cam = { p.x - rx * d, p.y + (TD.fight ? 1.5f : 2.2f), p.z - rz * d };
     V3 tgt = { p.x, p.y + 0.5f, p.z };
-    TD.ang += 0.006f;
+    TD.ang += 0.004f;
     game_lookat(cml, &cam, &tgt);
     return 1;
 }
