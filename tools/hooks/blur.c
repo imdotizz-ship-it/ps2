@@ -21,13 +21,13 @@
 typedef unsigned int u32; typedef unsigned char u8;
 
 #ifndef BLUR_START
-#define BLUR_START 25          /* m/s (90 km/h): blur starts                                 */
+#define BLUR_START 50          /* m/s (180 km/h): blur starts                                */
 #endif
 #ifndef BLUR_END
-#define BLUR_END   75          /* m/s (270 km/h): full blur                                  */
+#define BLUR_END   85          /* m/s (306 km/h): full blur                                 */
 #endif
 #ifndef BLUR_MAX
-#define BLUR_MAX   0x60        /* FIX at full speed: 96/128 = 75% of the previous frame        */
+#define BLUR_MAX   0x28        /* FIX at full speed: 40/128 = 31% of the previous frame        */
 #endif
 #ifndef BLUR_MIN
 #define BLUR_MIN   0x00        /* FIX floor once above BLUR_START                            */

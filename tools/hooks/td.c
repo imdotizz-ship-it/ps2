@@ -9,12 +9,13 @@ typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; 
 typedef struct { float x, y, z; } V3;
 
 #ifndef TD_FRAMES
-#define TD_FRAMES 240           /* race updates the cut lasts (~4 s) */
+#define TD_FRAMES 150           /* frames the cut lasts (~2.5 s) */
 #endif
-#define TD_SCALE 0.3f
+#define TD_SCALE 0.6f
 
 struct tdstate { u32 magic, active, timer, starts; u8 *victim, *player; u16 saved, pad; u32 prevsel; float ang;
-                 u32 fight, fside, frames, fights; float scale, gate; u16 vsaved, pad2; };
+                 u32 fight, fside, frames, fights; float scale, gate; u16 vsaved, pad2;
+                 u32 ticks, stops; V3 sm; };
 __attribute__((section(".data"))) struct tdstate TD = { 0x4d434454 /* 'TDCM' */ };
 
 extern void game_lookat(void *cml, V3 *pos, V3 *tgt);
@@ -43,12 +44,17 @@ static u8 *player_veh(void) {
     return okp(v) ? v : 0;
 }
 
+u8 *td_player(void) { return player_veh(); }
+
 void td_start(u8 *victim) {
     if (TD.active || !okp(victim)) return;
     u8 *pv = player_veh();
     if (!pv || pv == victim) return;
-    TD.victim = victim; TD.player = pv; TD.active = 1; TD.timer = 0; TD.starts++;
-    TD.saved = *(u16 *)(pv + 0x12c);
+    u16 fl = *(u16 *)(pv + 0x12c);
+    if ((fl & 0x3) != 0x1) return;          /* the game itself drives the player (crash, finish): no cut */
+    TD.victim = victim; TD.player = pv; TD.active = 1; TD.timer = 0; TD.ticks = 0; TD.starts++;
+    { float *vp = (float *)(victim + 0x50); TD.sm.x = vp[0]; TD.sm.y = vp[1]; TD.sm.z = vp[2]; }
+    TD.saved = fl;
     *(u16 *)(pv + 0x12c) = (TD.saved & ~0x1) | 0x2;          /* autopilot: AI drives the player bike */
     TD.ang = 0.9f;                                            /* start three-quarter front */
     TD.fight = 0; TD.frames = TD_FRAMES; TD.scale = TD_SCALE;
@@ -67,7 +73,7 @@ void td_fight(u8 *angry) {
     if (TD.active || !okp(angry)) return;
     td_start(angry);
     if (!TD.active) return;
-    TD.fight = 1; TD.fside = 1; TD.fights++; TD.frames = 400; TD.scale = 0.35f;
+    TD.fight = 1; TD.fside = 1; TD.fights++; TD.frames = 240; TD.scale = 0.6f;
     TD.gate = *(float *)0x63db34; *(float *)0x63db34 = 2.0f;
     TD.vsaved = *(u16 *)(angry + 0x12c);
     *(u16 *)(angry + 0x12c) |= 0x10;            /* "in focus": the rider LOD setter 0x34a9f0 keeps full LOD */
@@ -75,11 +81,14 @@ void td_fight(u8 *angry) {
 /* called right after the game's LOD pass for each bike: keep the fighting rider at full animation LOD */
 void td_bike_lod(u8 *veh, u8 *B) { (void)veh; (void)B; }
 static void td_stop(void) {
-    if (TD.player) *(u16 *)(TD.player + 0x12c) = TD.saved;
+    if (TD.player) *(u16 *)(TD.player + 0x12c) = (*(u16 *)(TD.player + 0x12c) & ~0x3) | 0x1;   /* player drives again */
+    TD.stops++;
     if (TD.fight) { *(float *)0x63db34 = TD.gate; if (TD.victim) *(u16 *)(TD.victim + 0x12c) = (*(u16 *)(TD.victim + 0x12c) & ~0x10) | (TD.vsaved & 0x10); TD.fight = 0; }
     TD.active = 0; TD.victim = TD.player = 0;
 }
 int td_active(void) { return TD.active; }
+/* the race is gone (menu, restart): forget the cut without touching the old vehicles */
+void td_reset(void) { if (TD.fight) *(float *)0x63db34 = TD.gate; TD.active = 0; TD.fight = 0; TD.victim = TD.player = 0; }
 
 /* race update: slow motion while the cut runs */
 float td_sim_dt(float dt) { return TD.active ? dt * TD.scale : dt; }
@@ -110,6 +119,7 @@ void td_tick(u32 buttons, u8 *last_bot_ctl) {
     (void)nearest_bot;
 #endif
     TD.prevsel = sel;
+    if (TD.active && ++TD.ticks > TD.frames + 60) td_stop();   /* watchdog: the cut camera may not run */
 }
 
 /* camera, called from on_race_cam after the game camera; returns 1 if it took over */
@@ -127,17 +137,18 @@ int td_cam(void *cml) {
         }
     }
     float *vp = (float *)(TD.victim + 0x50), *pp = (float *)(TD.player + 0x50);
-    V3 p = { vp[0], vp[1], vp[2] };
+    TD.sm.x += (vp[0] - TD.sm.x) * 0.2f; TD.sm.y += (vp[1] - TD.sm.y) * 0.2f; TD.sm.z += (vp[2] - TD.sm.z) * 0.2f;
+    V3 p = TD.sm;                                                /* smoothed: no shaking with the tumbling bike */
     /* horizontal direction player -> victim, orbiting slowly around the victim */
     float dx = p.x - pp[0], dz = p.z - pp[2], l2 = dx * dx + dz * dz;
     if (!td_flt(0.01f, l2)) { dx = 1; dz = 0; l2 = 1; }
     float il = 1.0f / fc_sqrt(l2); dx *= il; dz *= il;
     float s = fc_sin(TD.ang), c = fc_cos(TD.ang);
     float rx = dx * c - dz * s, rz = dx * s + dz * c;
-    float d = TD.fight ? 3.2f : 5.0f - TD.timer * 0.008f;     /* fight: close on the rider */
-    V3 cam = { p.x - rx * d, p.y + 1.6f, p.z - rz * d };
-    V3 tgt = { p.x, p.y + 0.4f, p.z };
-    TD.ang += 0.01f;
+    float d = TD.fight ? 3.5f : 6.0f;                           /* fight: close on the rider */
+    V3 cam = { p.x - rx * d, p.y + (TD.fight ? 1.5f : 2.2f), p.z - rz * d };
+    V3 tgt = { p.x, p.y + 0.5f, p.z };
+    TD.ang += 0.006f;
     game_lookat(cml, &cam, &tgt);
     return 1;
 }

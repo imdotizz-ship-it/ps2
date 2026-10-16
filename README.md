@@ -30,17 +30,17 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | Motos do MotoGP 4 | As seis motos da MotoGP com carenagem, quadro, motor, escapamento, para-brisa e pinturas do MotoGP 4 ([detalhes](#motos-do-motogp-4-no-motogp-08)) |
 | Bots que caem mais | Cada piloto da CPU tem o dobro da chance de cair (na pista, fora dela e de a queda ser um highside), nas três categorias, e guarda metade da distância dos outros |
 | Grid competitivo | Todos os pilotos da CPU com o ritmo do mais rápido da categoria (acelerador, tempos de classificação), em todas as dificuldades, no seco e na chuva; todas as motos de cada categoria com o torque da mais forte (MotoGP 94, 250cc 58, 125cc 31), mantendo câmbio, aderência e manejo de cada uma; ataques começam de mais longe (15 m) e defender não tira velocidade. As chances de queda continuam individuais (e dobradas) |
-| Toques estilo takedown | Um toque entre motos derruba com menos diferença de velocidade (92 → 55) e empurra 2,5 vezes mais forte; bater numa moto caída derruba mais cedo; as rivalidades entre pilotos pioram mais rápido a cada batida |
-| Câmeras | Câmera de TV (alta, atrás da moto) no botão de trocar câmera; tremor da câmera acima de 180 km/h; efeito de velocidade da câmera começando em 100 km/h (era 148) |
+| Toques estilo takedown | Um toque forte entre motos às vezes derruba o bot mais lento (1 em 6, nunca você) e empurra 1,5 vez mais forte; os limites de queda do jogo continuam os originais; as rivalidades entre pilotos pioram mais rápido a cada batida |
+| Câmeras | Câmera de TV (alta, atrás da moto) no botão de trocar câmera; sem tremor de câmera, efeito de velocidade original |
 | FOV ajustável | Controle deslizante na página de instalação: 60° a 110° nas câmeras da corrida (70° é o original) |
 | Câmera livre do replay | A câmera Orbit do replay gira mais rápido, vai de baixo até em cima da moto e fica mais longe |
 | Câmera livre (L1+R1) | Na corrida, segure L1+R1 para soltar a câmera: analógico esquerdo anda, direito olha, R2/L2 sobe e desce, quadrado acelera, X vai devagar, direcional para cima/baixo muda o FOV (esquerda volta ao do jogo), triângulo congela ou solta a corrida; L1+R1 de novo devolve a câmera do jogo. Código novo no executável ([`tools/hooks`](tools/hooks)) |
-| Queda fatal e bandeira vermelha | Numa queda forte (acima de ~90 km/h) um piloto da CPU pode morrer (1 em 3): ele fica no chão, sai da corrida, a cena passa em câmera lenta e a corrida para com a bandeira vermelha na tela; START abre o menu para reiniciar ou sair |
+| Queda fatal e bandeira vermelha | Numa queda muito forte (acima de ~135 km/h) um piloto da CPU pode morrer (1 em 10; as quedas forçadas por toque não contam): ele fica no chão, sai da corrida, a cena passa em câmera lenta e a corrida para com a bandeira vermelha na tela; START abre o menu para reiniciar ou sair |
 | FOV dentro do jogo | Opções > Video Setup > *Field of view*: -5° a +40° em passos de 5°, somado ao FOV escolhido na instalação; fica salvo no memory card (ocupa a opção "Standings", que o jogo não usa) |
-| Motion blur | Acima de 90 km/h o quadro anterior é misturado ao atual, cada vez mais forte até 270 km/h (75%) |
-| Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele e gira ao redor em câmera lenta por uns 4 s enquanto o piloto automático do jogo (AUTODRIVE) guia a sua moto; depois volta para você |
+| Motion blur | Leve: só acima de 180 km/h o quadro anterior é misturado ao atual, até 31% a 306 km/h |
+| Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele, em câmera lenta leve, por uns 2,5 s enquanto o piloto automático do jogo (AUTODRIVE) guia a sua moto; depois o controle volta sempre para você. Um toque leve não derruba você: as quedas forçadas só derrubam bots |
 | Xingamentos | Quem cai depois de um toque xinga o rival num painel no estilo do HUD (fonte do próprio jogo, com acentos); se você cai, o bot zomba de você. Cada xingamento tem voz em português (sintetizada) |
-| Sangue e destroços | Nas quedas sai um jato de sangue do piloto que deixa manchas pelo caminho, e peças da moto voam; numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida |
+| Para-brisa quebrado | Numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida (o sangue foi retirado) |
 | Briga | Às vezes, quando um bot derruba outro, a câmera corta para ele sacudindo o punho (gesto de raiva do próprio jogo, `rabbiaDX`) em câmera lenta, com o xingamento na tela |
 | Torcida mais alta | O som da torcida e do ambiente ficou cerca de 4 dB mais alto (limitador suave nas gravações, sem o corte de -2 dB do banco e com o volume de ambiente em 1.0); as arquibancadas continuam onde estavam ([`tools/audio`](tools/audio)) |
 | Safety Car (experimental, opcional) | A BMW M6 Safety Car do MotoGP 4 como uma equipe e um piloto a mais, marcada na página de instalação |
@@ -129,9 +129,6 @@ github.com.
   dados: cada uma (`KmUnit`, `TrackMap`...) tem nome fixo no executável, uma
   tela pronta (`.mwf`) e código que aplica o valor. Uma opção nova precisa
   dos três, e o código das câmeras precisaria ler o valor novo.
-- **Motion blur forte.** O PS2 não tem desfoque de movimento nas câmeras de
-  corrida; o que existe é o efeito de velocidade da câmera, que agora começa
-  mais cedo, e o tremor em alta velocidade.
 - **Pontuação de takedown do Burnout.** A câmera lenta e as quedas forçadas
   existem, mas não há placar de takedowns.
 - **Ragdoll nas quedas e deformação estilo Burnout.** As quedas do 08 são

@@ -126,9 +126,10 @@ static void fmt1(char *d, int max, const char *f, const char *arg) {   /* only %
     d[o] = 0;
 }
 
-static int is_human(u8 *ctl) {
+extern u8 *td_player(void);
+static int is_human(u8 *ctl) {                 /* the player, also while the autopilot drives him */
     u8 *veh = *(u8 **)(ctl + 0x428);
-    return okptr(veh) && (*(u16 *)(veh + 0x12c) & 0x1);
+    return okptr(veh) && ((*(u16 *)(veh + 0x12c) & 0x1) || veh == td_player());
 }
 
 /* speaker talks to target */
@@ -171,6 +172,8 @@ static int bb_flt(float a, float b) {
 struct tkstate { u32 magic, hist[6], hits, forced, cool; float maxd, maxs; };
 __attribute__((section(".data"))) struct tkstate TK = { 0x4b444b54 /* 'TKDK' */ };
 static u8 *tk_victim;
+static int tk_forcing;                       /* a forced takedown is in progress (fake 100 m/s impact) */
+int ins_forced(void) { return tk_forcing; }
 static float fabs_(float x) { return bb_flt(x, 0.0f) ? -x : x; }
 /* called before each of the two 0x319020 calls of a bike-bike contact; returns 1 to force the fall */
 int bb_pre(u8 *ctl, int which, float diff, float side) {
@@ -189,15 +192,19 @@ int bb_pre(u8 *ctl, int which, float diff, float side) {
         TK.hits++;
         if ((rnd() % TK_CHANCE) != 0) return 0;
         TK.cool = TK_COOLDOWN; TK.forced++;
-        if (bb_flt(diff, 0.0f)) return 1;            /* A is the slower one: A goes down now */
+        if (bb_flt(diff, 0.0f)) {                    /* A is the slower one: A goes down now */
+            if (is_human(ctl)) { TK.cool = 0; TK.forced--; return 0; }   /* never the player */
+            tk_forcing = 1; return 1;
+        }
         tk_victim = (u8 *)2;                         /* B is the slower one: force B's call */
         return 0;
     }
-    if (tk_victim == (u8 *)2) { tk_victim = 0; return 1; }
+    if (tk_victim == (u8 *)2) { tk_victim = 0; if (is_human(ctl)) { TK.cool = 0; TK.forced--; return 0; } tk_forcing = 1; return 1; }
     return 0;
 }
 void bb_post(u8 *ctl, int which) {
     (void)ctl;
+    tk_forcing = 0;
     INS.cur = 0;
     if (which != 2 || !INS.a || !INS.b) return;
     INS.contacts++;
@@ -246,7 +253,7 @@ float ins_sim_dt(float dt) {
 void ins_tick(void) {               /* per pad read: drop state when not racing */
     if (TK.cool) TK.cool--;
     INS.seed += 0x6d2b79f5u;
-    if (INS.alive && --INS.alive == 0) { extern void gore_reset(void), gesture_reset(void); gore_reset(); gesture_reset(); INS.show = INS.td_show = INS.td_slow = 0; INS.cur = INS.a = INS.b = 0; }
+    if (INS.alive && --INS.alive == 0) { extern void gore_reset(void), gesture_reset(void), td_reset(void); gore_reset(); gesture_reset(); td_reset(); INS.show = INS.td_show = INS.td_slow = 0; INS.cur = INS.a = INS.b = 0; }
 }
 
 static int ins_flt(float a, float b) {   /* a < b, R5900-safe */

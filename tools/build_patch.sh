@@ -31,18 +31,18 @@ python3 $T/isopatch.py make "$ISO08" $T/../patcher SLUS_218.11=$W/hooks/SLUS_218
   --name "MotoGP 08 + MotoGP 4.iso" \
   --note "Câmera livre: segure L1+R1 na corrida. Analógico esquerdo anda, direito olha, R2/L2 sobe/desce, quadrado rápido, X devagar, direcional cima/baixo muda o FOV, triângulo congela/solta a corrida" \
   --note "Campo de visão dentro do jogo: Opções > Video Setup > Field of view, de -5° a +40° sobre o FOV escolhido aqui" \
-  --note "Motion blur forte acima de 90 km/h, cada vez mais forte até 270 km/h" \
-  --note "Takedown estilo Burnout 3: quando você derruba um piloto, a câmera corta para a queda dele em câmera lenta por uns 4 segundos enquanto o piloto automático guia a sua moto" \
+  --note "Motion blur leve acima de 180 km/h" \
+  --note "Takedown estilo Burnout 3: quando você derruba um piloto, a câmera corta para a queda dele em câmera lenta leve por uns 2,5 segundos enquanto o piloto automático guia a sua moto" \
   --note "Xingamentos: quem cai depois de um toque xinga o rival numa caixa no estilo do HUD do jogo, com voz em português" \
-  --note "Sangue e destroços nas quedas: jato de sangue que forma poças e peças da moto voando; numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida" \
+  --note "Numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida" \
   --note "Briga: às vezes, quando um bot derruba outro, a câmera corta para ele sacudindo o punho (gesto de raiva do jogo) em câmera lenta, com o xingamento na tela" \
-  --note "Quedas fatais: numa queda forte (acima de ~90 km/h) um piloto da IA pode morrer (1 em 3); a corrida recebe bandeira vermelha e para, e o START abre o menu para reiniciar" \
+  --note "Quedas fatais: numa queda muito forte (acima de ~135 km/h) um piloto da IA pode morrer (1 em 10); a corrida recebe bandeira vermelha e para, e o START abre o menu para reiniciar" \
   --note "Torcida e som ambiente mais altos (cerca de 4 dB a mais, sem estourar)" \
   --note "Motos do MotoGP 4 nas seis motos da MotoGP" \
   --note "Bots com o dobro de chance de cair e menos cuidado entre si" \
   --note "Todos os pilotos da IA com o ritmo do mais rápido da categoria e todas as motos com o torque da mais forte: o grid inteiro briga pela vitória, ataca de mais longe e defende sem tirar o pé" \
-  --note "Toques derrubam mais fácil e empurram mais forte (estilo takedown); rivalidades crescem mais rápido a cada batida" \
-  --note "Câmera de TV no botão de trocar câmera, tremor da câmera em alta velocidade e efeito de velocidade mais cedo" \
+  --note "Toques empurram mais forte e às vezes derrubam o bot mais lento (nunca você); rivalidades crescem mais rápido a cada batida" \
+  --note "Câmera de TV no botão de trocar câmera" \
   --note "Câmera Orbit do replay quase livre (gira de baixo até em cima da moto)" \
   --option fov "Campo de visão (FOV) das câmeras da moto" 70 "${OPT:1}" --option-unit "°" \
   --option-note "70° é o original. Vale para as câmeras de corrida; para mudar depois, monte a ISO de novo." \

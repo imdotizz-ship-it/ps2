@@ -72,6 +72,9 @@ void gore_on_fall(u8 *veh, float speed, int fatal) {
     { extern void gesture_mark(u8 *); gesture_mark(veh); }
 #endif
     if (flt(12.0f, speed) && nbroken < 24) { int k; for (k = 0; k < nbroken && BROKEN[k] != veh; k++); if (k == nbroken) BROKEN[nbroken++] = veh; }
+#ifndef GORE_BLOOD
+    (void)n; return;                /* blood and debris particles off: only the windscreen breaks */
+#endif
     for (int e = 0; e < 4; e++) if (!EM[e].veh || EM[e].veh == veh) { EM[e].veh = veh; EM[e].t = 0; EM[e].acc = 0; EM[e].speed = s; break; }
     for (int i = 0; i < n; i++) {
         P *p = alloc(); if (!p) break;

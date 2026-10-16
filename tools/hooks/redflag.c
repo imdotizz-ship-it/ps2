@@ -9,10 +9,10 @@
 typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; typedef short s16;
 
 #ifndef RF_MIN_SPEED
-#define RF_MIN_SPEED 25.0f      /* impact speed (game units, f20) needed for a fatal crash */
+#define RF_MIN_SPEED 38.0f      /* impact speed (m/s, ~135 km/h) needed for a fatal crash */
 #endif
 #ifndef RF_CHANCE
-#define RF_CHANCE 3             /* 1 in RF_CHANCE hard AI crashes is fatal */
+#define RF_CHANCE 10            /* 1 in RF_CHANCE hard AI crashes is fatal */
 #endif
 #ifndef RF_ENABLE
 #define RF_ENABLE 1
@@ -50,6 +50,7 @@ void on_fall(u8 *veh, u8 *ctl, float speed) {
     if (rf_flt(RF.max_speed, speed)) RF.max_speed = speed;
     RF.seed = RF.seed * 1103515245u + 12345u + RF.falls;
     if (RF.state) return;                                   /* one red flag at a time */
+    { extern int ins_forced(void); if (ins_forced()) return; }   /* forced takedown: its impact speed is fake */
     u16 fl = *(u16 *)(veh + 0x12c);
     if (RF_AI_ONLY && !(fl & 0x2)) return;
     if (rf_flt(speed, RF_MIN_SPEED)) return;

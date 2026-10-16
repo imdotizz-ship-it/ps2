@@ -13,14 +13,11 @@ r"""Gameplay data mods for MotoGP 08 (PS2), all in DATA.MIX (.BML files, see bml
                         distance, collision boxes and braking distance are halved, overtakes
                         pass closer and defending riders steer harder (the values that concern
                         the human rider are kept)
-  DATA\DB_GAMECONFIG.BML contacts in the style of Burnout takedowns: a bike-to-bike contact
-                        knocks a rider down at a lower speed difference and shoves harder,
-                        running into a fallen bike brings you down sooner, and collisions sour
+  DATA\DB_GAMECONFIG.BML contacts shove a bit harder, and collisions sour
                         the rivalry between two riders faster; the replay Orbit camera turns
                         almost all the way round and from below to straight above the bike
   DATA\CAMERAS.BML      a high TV-style chase camera in the in-race camera cycle (instead of
-                        the second cockpit view); camera shake at high speed and the speed
-                        effect of the cameras starting earlier; the field of view of the race
+                        the second cockpit view); the field of view of the race
                         cameras (--fov, cockpit degrees; 70 is the original)
 
   --safety-car (experimental) DB_VEHICLES, DB_TEAMS and DB_PILOTS get the MotoGP 4 safety
@@ -53,11 +50,8 @@ AI_CHANGES = {
 }
 
 DAMAGE = {                                  # GameConfig/Damage (and its per-mode copies)
-    "BikeBikeCollisionDiffSpeed": "25.",    # 92.
-    "BikeBikeCollisionSideSpeed": "12.",    # 48.
-    "BikeBikeCollisionImpulse": "2.5",      # 1.
-    "BikeVsFallenBikeSpeedThreshold": "12.",  # 20.
-}
+    "BikeBikeCollisionImpulse": "1.5",      # 1.: contacts shove a bit harder; the fall thresholds
+}                                           # stay original (the hook code forces bot takedowns)
 RIVALRY = {"LIGHT": "-3", "MEDIUM": "-8", "HARD": "-15"}   # -1, -3, -5
 ORBIT = {"Distance": "7", "DegsPerSecond_X": "150.", "DegsPerSecond_Y": "150.",
          "MinVerticalAngleDeg": "-80.", "MaxVerticalAngleDeg": "89."}
@@ -66,9 +60,6 @@ TV_SLOT = "3"          # the bonnet camera, used by no camera list
 TV_GAME_INDEX = "2"    # replaces the second cockpit view (camera 6) in the in-race cycle
 TV_VALUES = {"vCameraPos": "0.0, 6.5, -11.0", "vCameraDir": "0.0, -5.0, 11.0", "vCameraPosBack": "0.0, 5.0, 9.0",
              "fFocal": "60", "fExtCamFinalFocal": "60"}
-SHAKE = {"bVibrationActive": "true", "fVibrationMinSpeed": "50.0", "fVibrationMaxSpeed": "85.0",
-         "fVibrationFrequence": "40.0", "fVibrationAmplitude": "0.04"}
-SPEED_FX = {"fNitroEffectStartSpeed": "28", "fNitroEffectEndSpeed": "50"}   # 41, 66 (m/s)
 FOV_DEFAULT = 70
 
 
@@ -179,11 +170,6 @@ def cameras(d, fov=FOV_DEFAULT):
                 v = bml.get_text(node, name)
                 if v is not None:            # three digits, so every --fov gives the same file size
                     bml.set_text(node, name, "%03d" % round(float(v.rstrip("f").rstrip(".")) * k))
-        for name, v in SHAKE.items():
-            bml.set_text(cam, name, v, create=True)
-        for name, v in SPEED_FX.items():
-            if bml.get_text(cam, name) is not None:
-                bml.set_text(cam, name, v)
     return bml.save(root)
 
 
