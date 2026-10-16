@@ -14,6 +14,8 @@ CL = ['clang', '--target=mips64el-unknown-none-gnuabin32', '-march=mips3', '-mab
       '-mno-abicalls', '-fno-pic', '-G0', '-Os', '-ffreestanding', '-nostdlib', '-fno-builtin',
       '-fomit-frame-pointer', '-fno-fast-math', '-ffp-contract=off', '-fno-jump-tables', '-mno-check-zero-division']
 EXTRA = os.environ.get('RFDEF', '').split()
+FPS60 = os.environ.get('FPS60', '1') != '0'
+if FPS60: EXTRA = EXTRA + ['-DFPS60']
 B = os.path.join(HERE, 'build'); os.makedirs(B, exist_ok=True); os.makedirs(os.path.dirname(OUT), exist_ok=True)
 def run(c): print(' '.join(c)); subprocess.check_call(c)
 SRCS = ['hook.S', 'user.c', 'freecam.c', 'redflag.c', 'insult.c', 'blur.c', 'ui.c', 'td.c', 'gore.c', 'gesture.c', 'sound.c']
@@ -109,6 +111,13 @@ if os.environ.get('WIDESCREEN', '1') != '0':
                          (0x20eecc, 0xe7a00048, 0x3463fa35), (0x20eed4, 0x4614e002, 0x46140002),
                          (0x20eed8, 0x4600e846, 0x44830800)]:
         wrc(va, new, old)
+# --- 60 fps (our own, agent-verified): lift the race VBlank cap (2->1) and run the fixed-step
+# simulation at 60 Hz so motion and the race clock stay real-time (SetFrameRate(refresh>>1=30)->60).
+# Main loop 0x38eb70 waits app->0x44 VBlanks; SetFrameRate at 0x2cecc0 sets g_FrameTime=1/fps,
+# g_SubStep=1/(3fps).  Mod timers are frame-counted; -DFPS60 doubles them so they keep their timing.
+if FPS60:
+    wrc(0x38a474, 0x24030001, 0x24030002)        # race VBlank interval 2 -> 1 (addiu v1,zero,1)
+    wrc(0x38f4a0, 0x0040202d, 0x00022042)        # SetFrameRate(refresh) instead of refresh>>1 -> 60 Hz step
 # append segment at end of file (aligned) and fill phdr[1]
 e_phoff = struct.unpack_from('<I', d, 0x1c)[0]
 off = (len(d) + 0x7f) & ~0x7f

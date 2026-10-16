@@ -8,8 +8,13 @@
 typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; typedef short s16;
 typedef struct { float x, y, z; } V3;
 
+#ifdef FPS60
+#define FR(n) ((n) * 2)                /* 60 fps: frame-counted durations last the same wall time */
+#else
+#define FR(n) (n)
+#endif
 #ifndef TD_FRAMES
-#define TD_FRAMES 150           /* frames the cut lasts (~2.5 s) */
+#define TD_FRAMES FR(150)           /* frames the cut lasts (~2.5 s) */
 #endif
 #define TD_SCALE 0.6f
 
@@ -73,7 +78,7 @@ void td_fight(u8 *angry) {
     if (TD.active || !okp(angry)) return;
     td_start(angry);
     if (!TD.active) return;
-    TD.fight = 1; TD.fside = 1; TD.fights++; TD.frames = 240; TD.scale = 0.6f;
+    TD.fight = 1; TD.fside = 1; TD.fights++; TD.frames = FR(240); TD.scale = 0.6f;
     TD.gate = *(float *)0x63db34; *(float *)0x63db34 = 2.0f;
     TD.vsaved = *(u16 *)(angry + 0x12c);
     *(u16 *)(angry + 0x12c) |= 0x10;            /* "in focus": the rider LOD setter 0x34a9f0 keeps full LOD */
@@ -88,7 +93,11 @@ static void td_stop(void) {
 }
 int td_active(void) { return TD.active; }
 /* the race is gone (menu, restart): forget the cut without touching the old vehicles */
-void td_reset(void) { if (TD.fight) *(float *)0x63db34 = TD.gate; TD.active = 0; TD.fight = 0; TD.victim = TD.player = 0; }
+void td_reset(void) {
+    if (TD.fight) *(float *)0x63db34 = TD.gate;
+    { u8 *pv = player_veh(); if (pv && (*(u16 *)(pv + 0x12c) & 0x2)) *(u16 *)(pv + 0x12c) = (*(u16 *)(pv + 0x12c) & ~0x2) | 0x1; }
+    TD.active = 0; TD.fight = 0; TD.victim = TD.player = 0;
+}
 
 /* race update: slow motion while the cut runs */
 float td_sim_dt(float dt) { return TD.active ? dt * TD.scale : dt; }
@@ -119,7 +128,11 @@ void td_tick(u32 buttons, u8 *last_bot_ctl) {
     (void)nearest_bot;
 #endif
     TD.prevsel = sel;
-    if (TD.active && ++TD.ticks > TD.frames + 60) td_stop();   /* watchdog: the cut camera may not run */
+    if (TD.active && ++TD.ticks > TD.frames + FR(60)) td_stop();   /* watchdog: the cut camera may not run */
+#ifndef SOAK
+    { u8 *pv = player_veh();                                   /* never leave the player on autopilot */
+      if (pv && !TD.active && (*(u16 *)(pv + 0x12c) & 0x2)) *(u16 *)(pv + 0x12c) = (*(u16 *)(pv + 0x12c) & ~0x2) | 0x1; }
+#endif
 }
 
 /* camera, called from on_race_cam after the game camera; returns 1 if it took over */
@@ -133,7 +146,7 @@ int td_cam(void *cml) {
         if (TD.fside == 1 && cur == 27) TD.fside = 2;                 /* gesture started */
         else if (TD.fside == 2 && (cur != 27 || st != 2)) {           /* gesture over: wrap up the cut */
             *(u32 *)(TD.victim - 0x1cc0 + 0x520 + 0x2e0) = 0;          /* no follow-up pose */
-            TD.fside = 3; if (TD.frames > TD.timer + 25) TD.frames = TD.timer + 25;
+            TD.fside = 3; if (TD.frames > TD.timer + FR(25)) TD.frames = TD.timer + FR(25);
         }
     }
     float *vp = (float *)(TD.victim + 0x50), *pp = (float *)(TD.player + 0x50);

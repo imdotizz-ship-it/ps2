@@ -23,9 +23,14 @@ typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; 
 #endif
 #define BOX_W      44          /* inner width of the box */
 #ifndef SHOW_FR
-#define SHOW_FR    180         /* ~3 s of draws */
+#ifdef FPS60
+#define FR(n) ((n) * 2)                /* 60 fps: frame-counted durations last the same wall time */
+#else
+#define FR(n) (n)
 #endif
-#define COOLDOWN   60          /* draws before a new message may replace the current one */
+#define SHOW_FR    FR(180)         /* ~3 s of draws */
+#endif
+#define COOLDOWN   FR(60)          /* draws before a new message may replace the current one */
 #define TD_SLOW_FR 0           /* slow motion now comes from the takedown cam (td.c) */
 #define TD_SCALE   0.3f
 
@@ -168,7 +173,7 @@ static int bb_flt(float a, float b) {
 #ifndef TK_CHANCE
 #define TK_CHANCE 6             /* 1 in TK_CHANCE real hits knocks the slower rider down */
 #endif
-#define TK_COOLDOWN 360         /* race updates between forced crashes */
+#define TK_COOLDOWN FR(360)         /* race updates between forced crashes */
 struct tkstate { u32 magic, hist[6], hits, forced, cool; float maxd, maxs; };
 __attribute__((section(".data"))) struct tkstate TK = { 0x4b444b54 /* 'TKDK' */ };
 static u8 *tk_victim;

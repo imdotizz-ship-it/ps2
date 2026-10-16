@@ -21,6 +21,11 @@ typedef unsigned int u32; typedef unsigned short u16; typedef unsigned char u8; 
 #define RF_AI_ONLY 1
 #endif
 
+#ifdef FPS60
+#define FR(n) ((n) * 2)                /* 60 fps: frame-counted durations last the same wall time */
+#else
+#define FR(n) (n)
+#endif
 struct rfstate {
     u32 magic;                  /* 'RFLG' */
     u32 state;                  /* 0 none, 1 slow motion, 2 stopped */
@@ -78,7 +83,7 @@ float rf_sim_dt(float dt) {
         *(u16 *)(v + 0x12c) |= 0x440;                       /* retired */
     }
     if (RF.state == 1) {
-        if (RF.timer > 150) RF.state = 2;                  /* ~2.5 s of slow motion */
+        if (RF.timer > FR(150)) RF.state = 2;                  /* ~2.5 s of slow motion */
         return dt * 0.25f;
     }
     return 0.0f;
@@ -104,7 +109,7 @@ void rf_draw(int pass) {
     RF.state = 2; RF.alive = 1;
 #endif
     if (!RF.state || !RF.alive) return;
-    float a = RF.timer < 16 ? RF.timer / 16.0f : 1.0f;          /* fade in */
+    float a = RF.timer < FR(16) ? RF.timer / (float)FR(16) : 1.0f;          /* fade in */
     float x0 = 170, x1 = 470, y0 = 150;
     float p = ((RF.timer >> 5) & 1) ? 1.0f : 0.6f;               /* slow pulse */
     if (pass == 0) {
