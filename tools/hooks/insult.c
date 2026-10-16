@@ -222,7 +222,9 @@ void bb_post(u8 *ctl, int which) {
     { extern void gesture_mark(u8 *); if (!is_human(victim)) gesture_mark(*(u8 **)(victim + 0x428)); }
     if (is_human(attacker)) {                    /* player knocked a bot down: TAKEDOWN */
         INS.takedowns++;
+#ifndef NO_TAKEDOWN
         INS.td_show = SHOW_FR; INS.td_slow = TD_SLOW_FR;
+#endif
         td_start(*(u8 **)(victim + 0x428));
     }
     extern void td_fight(u8 *veh); extern int td_active(void);

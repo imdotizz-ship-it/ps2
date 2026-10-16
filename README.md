@@ -40,11 +40,9 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | 60 fps | A corrida roda a 60 quadros por segundo (o original é 30), com a física e o cronômetro em tempo real. É um patch meu no executável: tira o limite de 30 da corrida e roda a simulação a 60 Hz. Precisa de desempenho para 60 fps; no emulador deixe a velocidade em 100%. Menus, replays e fantasmas do Time Attack não foram testados a fundo nesse modo |
 | Widescreen 16:9 | A imagem 3D da corrida em 16:9 de verdade (mais campo de visão dos lados, sem esticar), com o patch "Widescreen 16:9" de El_Patas (NTSC-U por Arapapa) do banco de patches do PCSX2, gravado direto no executável. No XBSX2/PCSX2, ponha a proporção da tela (Aspect Ratio) em 16:9. O HUD continua desenhado para 4:3 |
 | Motion blur | Leve: só acima de 180 km/h o quadro anterior é misturado ao atual, até 31% a 306 km/h |
-| Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele por uns 2,5 s (em velocidade normal, sem câmera lenta, para não travar) enquanto o piloto automático guia a sua moto; depois o controle volta sempre para você. Um toque leve não derruba você |
-| Piloto automático (SELECT) | O botão SELECT liga e desliga o piloto automático a qualquer momento na corrida: a IA assume a sua moto, e um novo toque devolve o controle. Também é a garantia de nunca ficar preso no piloto automático |
+| Takedown removido | A câmera de takedown, a cena de briga, o letreiro TAKEDOWN e o botão de piloto automático foram retirados: nenhum código do mod mexe mais no controle da sua moto |
 | Xingamentos | Quem cai depois de um toque xinga o rival numa caixa igual aos widgets do HUD do MotoGP 08 (pílula vermelha com o número, barra preta com o nome, pílula branca com a frase; fonte do próprio jogo); se você cai, o bot zomba de você. Cada xingamento tem voz em português (sintetizada) |
 | Para-brisa quebrado | Numa queda forte o para-brisa daquela moto quebra e some até o fim da corrida (o sangue foi retirado) |
-| Briga | Às vezes, quando um bot derruba outro, a câmera corta para ele sacudindo o punho (gesto de raiva do próprio jogo, `rabbiaDX`) em câmera lenta, com o xingamento na tela |
 | Torcida mais alta | O som da torcida e do ambiente ficou cerca de 4 dB mais alto (limitador suave nas gravações, sem o corte de -2 dB do banco e com o volume de ambiente em 1.0); as arquibancadas continuam onde estavam ([`tools/audio`](tools/audio)) |
 | Safety Car (experimental, opcional) | A BMW M6 Safety Car do MotoGP 4 como uma equipe e um piloto a mais, marcada na página de instalação |
 
@@ -146,7 +144,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`fb4f3e69813588f5a2de8c6ba4356018e314b6ab` com FOV 70 e sem Safety Car; as
+(`3890d902902fae9f84079b9e866a03392cf01437` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou

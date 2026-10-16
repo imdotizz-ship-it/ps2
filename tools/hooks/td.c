@@ -53,6 +53,9 @@ static u8 *player_veh(void) {
 u8 *td_player(void) { return player_veh(); }
 
 void td_start(u8 *victim) {
+#ifdef NO_TAKEDOWN
+    (void)victim; return;                    /* takedown cut removed: never touches the player's bike */
+#endif
     if (TD.active || !okp(victim)) return;
     u8 *pv = player_veh();
     if (!pv || pv == victim) return;
@@ -76,6 +79,9 @@ static void arm_gesture(u8 *veh, u32 side) {
     *(u32 *)(R + 0x2e0) = 2; *(u32 *)(R + 0x2e8) = side; *(u32 *)(R + 0x2ec) = side; *(float *)(R + 0x2e4) = 0.0f;
 }
 void td_fight(u8 *angry) {
+#ifdef NO_TAKEDOWN
+    (void)angry; return;                     /* fight cut removed */
+#endif
     if (TD.active || !okp(angry)) return;
     td_start(angry);
     if (!TD.active) return;
@@ -96,7 +102,9 @@ int td_active(void) { return TD.active; }
 /* the race is gone (menu, restart): forget the cut without touching the old vehicles */
 void td_reset(void) {
     if (TD.fight) *(float *)0x63db34 = TD.gate;
+#ifndef NO_TAKEDOWN
     { u8 *pv = player_veh(); if (pv && (*(u16 *)(pv + 0x12c) & 0x2)) *(u16 *)(pv + 0x12c) = (*(u16 *)(pv + 0x12c) & ~0x2) | 0x1; }
+#endif
     TD.active = 0; TD.fight = 0; TD.manual = 0; TD.victim = TD.player = 0;
 }
 
@@ -127,11 +135,13 @@ void td_tick(u32 buttons, u8 *last_bot_ctl) {
     if (sel && !TD.prevsel && last_bot_ctl) td_fight(nearest_bot(last_bot_ctl));
 #else
     (void)nearest_bot;
+#ifndef NO_TAKEDOWN
     if (sel && !TD.prevsel) TD.manual = !TD.manual;    /* SELECT toggles autopilot on/off (hold control) */
+#endif
 #endif
     TD.prevsel = sel;
     if (TD.active && ++TD.ticks > TD.frames + FR(60)) td_stop();   /* watchdog: the cut camera may not run */
-#ifndef SOAK
+#if !defined(SOAK) && !defined(NO_TAKEDOWN)
     { u8 *pv = player_veh();                                   /* control state when no cut is running */
       if (pv && !TD.active) {
           u16 fl = *(u16 *)(pv + 0x12c);

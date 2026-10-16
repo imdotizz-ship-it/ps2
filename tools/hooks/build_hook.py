@@ -16,6 +16,7 @@ CL = ['clang', '--target=mips64el-unknown-none-gnuabin32', '-march=mips3', '-mab
 EXTRA = os.environ.get('RFDEF', '').split()
 FPS60 = os.environ.get('FPS60', '1') != '0'
 if FPS60: EXTRA = EXTRA + ['-DFPS60']
+if os.environ.get('TAKEDOWN', '0') != '1': EXTRA = EXTRA + ['-DNO_TAKEDOWN']   # takedown cut / autopilot code off
 B = os.path.join(HERE, 'build'); os.makedirs(B, exist_ok=True); os.makedirs(os.path.dirname(OUT), exist_ok=True)
 def run(c): print(' '.join(c)); subprocess.check_call(c)
 SRCS = ['hook.S', 'user.c', 'freecam.c', 'redflag.c', 'insult.c', 'blur.c', 'ui.c', 'td.c', 'gore.c', 'gesture.c', 'sound.c']
