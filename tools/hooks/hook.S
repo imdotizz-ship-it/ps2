@@ -151,7 +151,7 @@ game_lookat:
         .globl game_setfov
 game_setfov:
         mov.s $f12, $f13
-        j    0x20ee80
+        j    setfov_ws
         mov.s $f13, $f14
 
 # H5: replaces 'jal 0x3141d0' (Vehicle::StartFall(veh=a0)) at 0x319274 and 0x319290.
@@ -264,7 +264,7 @@ hook_fov:
         cvt.s.w $f0, $f0
         add.s $f12, $f12, $f0
         add.s $f13, $f13, $f0
-1:      j     0x20ee80
+1:      j     setfov_ws
         nop
 
         .globl game_show
@@ -323,3 +323,22 @@ snd_set_volume:
 snd_set_pan:
         j     0x436950                 # Voice2D::SetPan(voice, f12 pan)
         mov.s $f12, $f13
+
+# ---------------------------------------------------------------- widescreen ----
+# The 16:9 patch in CML_Camera::SetFOV 0x20ee80 (build_hook.py) uses f28-f30 without saving them;
+# every call goes through here so the callers' callee-saved FP registers survive.
+        .globl setfov_ws
+setfov_ws:
+        addiu $sp, $sp, -0x20
+        sw    $ra, 0x10($sp)
+        swc1  $f28, 0($sp)
+        swc1  $f29, 4($sp)
+        swc1  $f30, 8($sp)
+        jal   0x20ee80
+        nop
+        lwc1  $f28, 0($sp)
+        lwc1  $f29, 4($sp)
+        lwc1  $f30, 8($sp)
+        lw    $ra, 0x10($sp)
+        jr    $ra
+        addiu $sp, $sp, 0x20

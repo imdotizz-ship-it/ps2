@@ -78,6 +78,8 @@ HOOKS = [(0x38eeac, 0x1f5840, 'hook_input_update'),
          (0x2806f8, 0x2880f0, 'hook_ae_render'),
          (0x281630, 0x2880f0, 'hook_ae_render'),
          (0x4c57ac, 0x20ee80, 'hook_fov'),
+         (0x2474e8, 0x20ee80, 'setfov_ws'),         # the other SetFOV callers: keep f28-f30 (16:9 patch)
+         (0x3fea9c, 0x20ee80, 'setfov_ws'),
          (0x2f1a90, 0x2f6060, 'hook_bike_parts'),
          (0x33f2ec, 0x348a70, 'hook_fall_mode'),      # fallen rider gets up and gestures     # crash damage: hide broken windscreens           # FOV menu option -> race camera
          ]
@@ -96,6 +98,17 @@ wrc(0x3cb420, 0x24a5ed0a, 0x24a5c782)            # addiu a1,a1,-0x12f6 -> 0x5ced
 wrc(0x3cb424, 0x24060000 | FOV_NVAL, 0x24060002) # addiu a2,zero,N  (count; min 0, step 1, max N-1)
 wrc(0x3cb428, 0x24080000, 0x24080001)            # addiu t0,zero,0  (clamp at the ends, no wrap)
 wrc(0x3cafa8, 0x00000000, 0x0006302b)            # ZVideoOpt::Apply: 'sltu a2,zero,a2' -> nop (keep index)
+# --- 16:9 widescreen for the 3D view: PCSX2 patch database SLUS-21811_73DA9F6F.pnach
+# "Widescreen 16:9" by El_Patas (NTSC-U by Arapapa), inside CML_Camera::SetFOV 0x20ee80.
+# The emulator still has to show the picture at 16:9 (gsaspectratio=16:9).
+if os.environ.get('WIDESCREEN', '1') != '0':
+    for va, new, old in [(0x20ee98, 0x4482e000, 0x44820000), (0x20eea8, 0x460ce002, 0x460c0002),
+                         (0x20eeac, 0x4483e800, 0x44830800), (0x20eeb8, 0x4600eb02, 0x46000b02),
+                         (0x20eebc, 0x00000000, 0xe7a00048), (0x20eec0, 0x3c013f40, 0x3c023f00),
+                         (0x20eec4, 0x4481f000, 0x44820000), (0x20eec8, 0x461e0003, 0x3c033c8e),
+                         (0x20eecc, 0xe7a00048, 0x3463fa35), (0x20eed4, 0x4614e002, 0x46140002),
+                         (0x20eed8, 0x4600e846, 0x44830800)]:
+        wrc(va, new, old)
 # append segment at end of file (aligned) and fill phdr[1]
 e_phoff = struct.unpack_from('<I', d, 0x1c)[0]
 off = (len(d) + 0x7f) & ~0x7f

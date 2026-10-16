@@ -37,6 +37,7 @@ terminar. A ISO nova (1,9 GB) vai para a pasta Downloads do app Arquivos.
 | Câmera livre (L1+R1) | Na corrida, segure L1+R1 para soltar a câmera: analógico esquerdo anda, direito olha, R2/L2 sobe e desce, quadrado acelera, X vai devagar, direcional para cima/baixo muda o FOV (esquerda volta ao do jogo), triângulo congela ou solta a corrida; L1+R1 de novo devolve a câmera do jogo. Código novo no executável ([`tools/hooks`](tools/hooks)) |
 | Queda fatal e bandeira vermelha | Numa queda muito forte (acima de ~135 km/h) um piloto da CPU pode morrer (1 em 10; as quedas forçadas por toque não contam): ele fica no chão, sai da corrida, a cena passa em câmera lenta e a corrida para com a bandeira vermelha na tela; START abre o menu para reiniciar ou sair |
 | FOV dentro do jogo | Opções > Video Setup > *Field of view*: -5° a +40° em passos de 5°, somado ao FOV escolhido na instalação; fica salvo no memory card (ocupa a opção "Standings", que o jogo não usa) |
+| Widescreen 16:9 | A imagem 3D da corrida em 16:9 de verdade (mais campo de visão dos lados, sem esticar), com o patch "Widescreen 16:9" de El_Patas (NTSC-U por Arapapa) do banco de patches do PCSX2, gravado direto no executável. No XBSX2/PCSX2, ponha a proporção da tela (Aspect Ratio) em 16:9. O HUD continua desenhado para 4:3 |
 | Motion blur | Leve: só acima de 180 km/h o quadro anterior é misturado ao atual, até 31% a 306 km/h |
 | Takedown estilo Burnout 3 | Quando você derruba um piloto, a câmera corta para a queda dele, em câmera lenta leve, por uns 2,5 s enquanto o piloto automático do jogo (AUTODRIVE) guia a sua moto; depois o controle volta sempre para você. Um toque leve não derruba você: as quedas forçadas só derrubam bots |
 | Xingamentos | Quem cai depois de um toque xinga o rival numa caixa igual aos widgets do HUD do MotoGP 08 (pílula vermelha com o número, barra preta com o nome, pílula branca com a frase; fonte do próprio jogo); se você cai, o bot zomba de você. Cada xingamento tem voz em português (sintetizada) |
@@ -143,7 +144,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`9345bb60316c074aeceb7699dbbef768626ac073` com FOV 70 e sem Safety Car; as
+(`7290657407817f877ab6f7598af6527b0b5fb66e` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou

@@ -31,6 +31,7 @@ python3 $T/isopatch.py make "$ISO08" $T/../patcher SLUS_218.11=$W/hooks/SLUS_218
   --name "MotoGP 08 + MotoGP 4.iso" \
   --note "Câmera livre: segure L1+R1 na corrida. Analógico esquerdo anda, direito olha, R2/L2 sobe/desce, quadrado rápido, X devagar, direcional cima/baixo muda o FOV, triângulo congela/solta a corrida" \
   --note "Campo de visão dentro do jogo: Opções > Video Setup > Field of view, de -5° a +40° sobre o FOV escolhido aqui" \
+  --note "Widescreen 16:9 na corrida (patch de El_Patas/Arapapa do banco do PCSX2): no XBSX2, ponha a proporção da tela (Aspect Ratio) em 16:9" \
   --note "Motion blur leve acima de 180 km/h" \
   --note "Takedown estilo Burnout 3: quando você derruba um piloto, a câmera corta para a queda dele em câmera lenta leve por uns 2,5 segundos enquanto o piloto automático guia a sua moto" \
   --note "Xingamentos: quem cai depois de um toque xinga o rival numa caixa no estilo do HUD do jogo, com voz em português" \
