@@ -15,7 +15,7 @@ câmera de TV a mais.
    Salvar em Arquivos).
 2. Abra no navegador o link da versão atual (fixo no commit, então nenhum cache
    entrega uma página ou um patch antigo):
-   **https://rawcdn.githack.com/imdotizz-ship-it/ps2/05421daafa4b0ec82448806c383d22775a4d976c/patcher/index.html**
+   **https://rawcdn.githack.com/imdotizz-ship-it/ps2/5e7e9144575e7957b13cd6271dc814f597e74986/patcher/index.html**
 3. Escolha a ISO, ajuste o FOV se quiser, toque em **Criar ISO** e depois em
    **Salvar**. A página baixa só o patch (3,6 MB); a ISO é montada no próprio
    aparelho e não é enviada para lugar nenhum.
@@ -143,7 +143,7 @@ partes `part-NN.patch`), aplicado pela página acima ou no PC com
 (com `--option fov=90` e `--profile safetycar` para as escolhas). Ele
 parte da ISO original **MotoGP 08 (USA)** (SHA-1
 `25cdef00791ac502dfad8a21b1f39b64b58fc361`) e confere a ISO final por SHA-1
-(`b8d9a9e6995dc137992452feffdacdbe13b10e2b` com FOV 70 e sem Safety Car; as
+(`0fd139815aafefd3915664e0465264f3f94effd9` com FOV 70 e sem Safety Car; as
 outras combinações estão no `manifest.json`).
 
 Os patches xdelta antigos continuam valendo (Delta Patcher, UniPatcher ou
