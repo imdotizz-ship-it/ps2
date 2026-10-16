@@ -15,7 +15,7 @@ câmera de TV a mais.
    Salvar em Arquivos).
 2. Abra no navegador o link da versão atual (fixo no commit, então nenhum cache
    entrega uma página ou um patch antigo):
-   **https://rawcdn.githack.com/imdotizz-ship-it/ps2/5e7e9144575e7957b13cd6271dc814f597e74986/patcher/index.html**
+   **https://rawcdn.githack.com/imdotizz-ship-it/ps2/59d9e3a496559268173189e73e6342f9c19b1b92/patcher/index.html**
 3. Escolha a ISO, ajuste o FOV se quiser, toque em **Criar ISO** e depois em
    **Salvar**. A página baixa só o patch (3,6 MB); a ISO é montada no próprio
    aparelho e não é enviada para lugar nenhum.
